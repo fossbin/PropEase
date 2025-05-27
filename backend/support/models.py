@@ -2,7 +2,7 @@ from django.db import models
 
 class SupportTickets(models.Model):
     id = models.UUIDField(primary_key=True)
-    user = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
+    user = models.ForeignKey('users.Users', models.DO_NOTHING, blank=True, null=True)
     subject = models.CharField(max_length=100, blank=True, null=True)
     priority = models.CharField(max_length=20, blank=True, null=True)
     description = models.TextField(blank=True, null=True)

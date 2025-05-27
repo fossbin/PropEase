@@ -2,7 +2,7 @@ from django.db import models
 
 class Properties(models.Model):
     id = models.UUIDField(primary_key=True)
-    owner = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
+    owner = models.ForeignKey('users.Users', models.DO_NOTHING, blank=True, null=True)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
     type = models.CharField(max_length=50, blank=True, null=True)

@@ -1,8 +1,9 @@
 from django.db import models
+from properties.models import Properties
 
 class Subscriptions(models.Model):
     id = models.UUIDField(primary_key=True)
-    user = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
+    user = models.ForeignKey('users.Users', models.DO_NOTHING, blank=True, null=True)
     property = models.ForeignKey(Properties, models.DO_NOTHING, blank=True, null=True)
     subscription_type = models.CharField(max_length=20, blank=True, null=True)
     start_date = models.DateField(blank=True, null=True)
