@@ -49,18 +49,30 @@ export default function RegisterPage() {
     }
 
     try {
-      // Simulate API call - replace with your actual registration logic
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock registration - replace with real auth
-      if (formData.name && formData.email && formData.password) {
-        localStorage.setItem('authToken', 'mock-token');
-        router.push('/dashboard');
-      } else {
-        setError('Please fill in all fields');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/register/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data?.detail || 'Registration failed. Please try again.');
+        setIsLoading(false);
+        return;
       }
+
+      localStorage.setItem('authToken', data.token);
+      router.push('/dashboard');
     } catch (err) {
-      setError('Registration failed. Please try again.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -68,47 +80,6 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left side - Decorative */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-purple-500 to-blue-600 relative overflow-hidden">
-        <div className="flex items-center justify-center w-full p-12">
-          <div className="text-center text-white">
-            <h3 className="text-4xl font-bold mb-6">
-              Join ModernApp Today
-            </h3>
-            <p className="text-xl opacity-90 mb-8">
-              Start your journey with thousands of satisfied users
-            </p>
-            <div className="space-y-4">
-              <div className="flex items-center justify-center space-x-2">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>Free to Get Started</span>
-              </div>
-              <div className="flex items-center justify-center space-x-2">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>24/7 Support</span>
-              </div>
-              <div className="flex items-center justify-center space-x-2">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>Premium Features</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Background decorations */}
-        <div className="absolute top-0 left-0 w-full h-full">
-          <div className="absolute top-20 right-20 w-32 h-32 bg-white rounded-full opacity-10 animate-pulse"></div>
-          <div className="absolute bottom-20 left-20 w-48 h-48 bg-white rounded-full opacity-5 animate-pulse delay-700"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white rounded-full opacity-5 animate-pulse delay-1000"></div>
-        </div>
-      </div>
-
       {/* Right side - Form */}
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
