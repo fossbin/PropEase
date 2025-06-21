@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -21,7 +22,7 @@ export default function RegisterPage() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    setError(''); // Clear error when user starts typing
+    setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,7 +30,6 @@ export default function RegisterPage() {
     setIsLoading(true);
     setError('');
 
-    // Validation
     if (!acceptTerms) {
       setError('Please accept the terms and conditions');
       setIsLoading(false);
@@ -49,29 +49,36 @@ export default function RegisterPage() {
     }
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/register/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+          },
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-        }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data?.detail || 'Registration failed. Please try again.');
+      if (signUpError) {
+        setError(signUpError.message);
         setIsLoading(false);
         return;
       }
 
-      localStorage.setItem('authToken', data.token);
-      router.push('/dashboard');
-    } catch (err) {
+      // Save session in localStorage if needed
+      if (data.session) {
+        localStorage.setItem('authToken', data.session.access_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+      }
+      if (data.user) {
+      sessionStorage.setItem('userId', data.user.id);
+      }
+
+      sessionStorage.setItem('userRole', ''); // Store selected role for session
+      router.push('/select-role');
+
+    } catch (err: any) {
       setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
@@ -80,7 +87,6 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Right side - Form */}
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
@@ -94,22 +100,6 @@ export default function RegisterPage() {
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-2">
-                  Full name
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Enter your full name"
-                />
-              </div>
-
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                   Email address
@@ -165,7 +155,7 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="flex items-center">
+            {/* <div className="flex items-center">
               <input
                 id="accept-terms"
                 name="accept-terms"
@@ -184,7 +174,7 @@ export default function RegisterPage() {
                   Privacy Policy
                 </Link>
               </label>
-            </div>
+            </div> */}
 
             <button
               type="submit"

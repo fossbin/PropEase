@@ -39,7 +39,10 @@ export default function LoginPage() {
         return;
       }
 
-      // Optional: save session token manually (not necessary unless you need it specifically)
+      if(data.user.email === "admin@gmail.com"){
+        router.push('/admin/');
+      }
+
       if (data.session) {
         localStorage.setItem('authToken', data.session.access_token);
       }
@@ -105,7 +108,7 @@ export default function LoginPage() {
               <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm">{error}</div>
             )}
 
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <input
                   id="remember-me"
@@ -124,7 +127,7 @@ export default function LoginPage() {
               >
                 Forgot your password?
               </Link>
-            </div>
+            </div> */}
 
             <button
               type="submit"
