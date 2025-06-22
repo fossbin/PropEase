@@ -1,18 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectItem } from '@/components/ui/select';
+import LocationPicker from '@/components/LocationPicker';
 
 const propertyTypes = ['Apartment', 'PG', 'Land', 'Villa'];
 const pricingTypes = ['Fixed', 'Dynamic'];
+const userID = typeof window !== 'undefined' ? sessionStorage.getItem('userId') || '' : '';
 
 export default function AddPropertyPage() {
   const router = useRouter();
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -20,23 +23,71 @@ export default function AddPropertyPage() {
     pricing_type: '',
     price: '',
     capacity: '',
+    location: {
+      address_line: '',
+      city: '',
+      state: '',
+      country: '',
+      zipcode: '',
+      latitude: '',
+      longitude: '',
+    },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+
+    if (name.startsWith("location.")) {
+      const key = name.split(".")[1];
+      setFormData((prev) => ({
+        ...prev,
+        location: {
+          ...prev.location,
+          [key]: value,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const formattedPayload = {
+      property: {
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        status: 'Available',
+        price: parseFloat(formData.price),
+        pricing_type: formData.pricing_type,
+        capacity: parseInt(formData.capacity),
+      },
+      location: {
+        ...formData.location,
+        latitude: parseFloat(formData.location.latitude),
+        longitude: parseFloat(formData.location.longitude),
+      }
+    };
+
     try {
-      // Send to FastAPI backend here (placeholder)
-      const res = await fetch('/api/properties', {
+      const res = await fetch(`${API_BASE_URL}/api/properties`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userID,
+        },
+        body: JSON.stringify(formattedPayload),
       });
+
       if (res.ok) {
-        router.push('/dashboard/my-properties');
+        router.push('/provider/my-properties');
+      } else {
+        const error = await res.json();
+        console.error('Error:', error);
       }
     } catch (err) {
       console.error('Submission error:', err);
@@ -59,13 +110,7 @@ export default function AddPropertyPage() {
 
         <div>
           <Label htmlFor="type">Property Type</Label>
-          <select
-            name="type"
-            value={formData.type}
-            onChange={handleChange}
-            required
-            className="w-full p-2 border rounded"
-          >
+          <select name="type" value={formData.type} onChange={handleChange} required className="w-full p-2 border rounded">
             <option value="">Select Type</option>
             {propertyTypes.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -75,13 +120,7 @@ export default function AddPropertyPage() {
 
         <div>
           <Label htmlFor="pricing_type">Pricing Type</Label>
-          <select
-            name="pricing_type"
-            value={formData.pricing_type}
-            onChange={handleChange}
-            required
-            className="w-full p-2 border rounded"
-          >
+          <select name="pricing_type" value={formData.pricing_type} onChange={handleChange} required className="w-full p-2 border rounded">
             <option value="">Select Pricing Type</option>
             {pricingTypes.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -98,6 +137,65 @@ export default function AddPropertyPage() {
           <Label htmlFor="capacity">Capacity</Label>
           <Input type="number" name="capacity" value={formData.capacity} onChange={handleChange} />
         </div>
+
+        <div>
+          <Label>Pick Location (Click on Map)</Label>
+          <LocationPicker
+            onLocationSelect={(loc) =>
+              setFormData((prev) => ({
+                ...prev,
+                location: {
+                  address_line: loc.address_line,
+                  city: loc.city,
+                  state: loc.state,
+                  country: loc.country,
+                  zipcode: loc.zipcode,
+                  latitude: loc.lat.toString(),
+                  longitude: loc.lng.toString(),
+                },
+              }))
+            }
+          />
+
+        </div>
+
+        <div>
+          <Label htmlFor="location.address_line">Address</Label>
+          <Input name="location.address_line" value={formData.location.address_line} onChange={handleChange}  />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="location.city">City</Label>
+            <Input name="location.city" value={formData.location.city} onChange={handleChange}  />
+          </div>
+          <div>
+            <Label htmlFor="location.state">State</Label>
+            <Input name="location.state" value={formData.location.state} onChange={handleChange}  />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="location.country">Country</Label>
+            <Input name="location.country" value={formData.location.country} onChange={handleChange}  />
+          </div>
+          <div>
+            <Label htmlFor="location.zipcode">Zip Code</Label>
+            <Input name="location.zipcode" value={formData.location.zipcode} onChange={handleChange}  />
+          </div>
+        </div>
+
+        {/* <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="location.latitude">Latitude</Label>
+            <Input name="location.latitude" value={formData.location.latitude} onChange={handleChange} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="location.longitude">Longitude</Label>
+            <Input name="location.longitude" value={formData.location.longitude} onChange={handleChange} readOnly />
+          </div>
+        </div> */}
 
         <Button type="submit" className="mt-4">Submit Property</Button>
       </form>

@@ -1,14 +1,13 @@
-from fastapi import APIRouter, HTTPException, Depends
-from supabase import create_client, Client
-from typing import List
+from fastapi import APIRouter, HTTPException, Depends, Request
+from supabase import Client
+from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel
-import os
-
-from ..dependencies import get_supabase
+from app.db.supabase import get_supabase_client as get_supabase
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
+# Location model
 class PropertyLocation(BaseModel):
     address_line: str
     city: str
@@ -18,67 +17,61 @@ class PropertyLocation(BaseModel):
     latitude: float
     longitude: float
 
+# Property model
 class PropertyBase(BaseModel):
     title: str
     description: str
     type: str
-    status: str
+    status: Optional[str] = "Available"
     price: float
     pricing_type: str
     capacity: int
-    photos: List[str]
+
+# Combined request model
+class PropertyWithLocation(BaseModel):
+    property: PropertyBase
     location: PropertyLocation
 
-class PropertyCreate(PropertyBase):
-    owner_id: UUID
+@router.post("/")
+def create_property(
+    request: Request,
+    payload: PropertyWithLocation,
+    supabase: Client = Depends(get_supabase)
+):
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized: Missing user ID")
 
-class Property(PropertyBase):
-    id: UUID
-    owner_id: UUID
-    created_at: str
-
-@router.post("/", response_model=Property)
-def create_property(property: PropertyCreate, supabase: Client = Depends(get_supabase)):
-    # Step 1: Insert into properties table
+    # Insert property
     property_data = {
-        "owner_id": str(property.owner_id),
-        "title": property.title,
-        "description": property.description,
-        "type": property.type,
-        "status": property.status,
-        "price": property.price,
-        "pricing_type": property.pricing_type,
-        "capacity": property.capacity,
-        "photos": property.photos,
+        "owner_id": user_id,
+        "title": payload.property.title,
+        "description": payload.property.description,
+        "type": payload.property.type,
+        "status": payload.property.status,
+        "price": payload.property.price,
+        "pricing_type": payload.property.pricing_type,
+        "capacity": payload.property.capacity,
+        "photos": [],
     }
 
-    res = supabase.table("properties").insert(property_data).execute()
-    if res.status_code != 201:
-        raise HTTPException(status_code=400, detail="Failed to create property")
+    prop_res = supabase.table("properties").insert(property_data).execute()
+    if not prop_res.data:
+        raise HTTPException(status_code=500, detail="Property creation failed")
 
-    property_id = res.data[0]["id"]
+    property_id = prop_res.data[0]["id"]
 
-    # Step 2: Insert corresponding location in property_locations
+    # Insert location
     location_data = {
         "property_id": property_id,
-        "address_line": property.location.address_line,
-        "city": property.location.city,
-        "state": property.location.state,
-        "country": property.location.country,
-        "zipcode": property.location.zipcode,
-        "latitude": property.location.latitude,
-        "longitude": property.location.longitude,
+        **payload.location.dict()
     }
 
     loc_res = supabase.table("property_locations").insert(location_data).execute()
-    if loc_res.status_code != 201:
-        raise HTTPException(status_code=400, detail="Failed to create property location")
+    if not loc_res.data:
+        raise HTTPException(status_code=500, detail="Location creation failed")
 
-    return {**res.data[0], "location": property.location}
-
-@router.get("/", response_model=List[Property])
-def list_properties(supabase: Client = Depends(get_supabase)):
-    res = supabase.rpc("get_properties_with_location").execute()
-    if res.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to fetch properties")
-    return res.data
+    return {
+        "message": "Property and location created successfully",
+        "property_id": property_id
+    }
