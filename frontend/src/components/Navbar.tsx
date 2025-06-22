@@ -27,7 +27,6 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Auth Buttons */}
         <div className="flex items-center space-x-3">
           <Link 
             href="/login" 

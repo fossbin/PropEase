@@ -1,4 +1,3 @@
-// app/common/account/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,6 +10,7 @@ interface Transaction {
   type: string;
   amount: number;
   description: string;
+  property_title?: string;
   created_at: string;
 }
 
@@ -77,10 +77,20 @@ export default function AccountPage() {
           <div className="space-y-2">
             {transactions.map((tx) => (
               <Card key={tx.id}>
-                <CardContent className="p-3">
-                  <p className="font-semibold">{tx.type} - ₹{tx.amount}</p>
-                  <p className="text-sm text-gray-600">{tx.description}</p>
-                  <p className="text-xs text-gray-500">{new Date(tx.created_at).toLocaleString()}</p>
+                <CardContent className="p-3 space-y-1">
+                  <p className="font-semibold">
+                    {tx.type} - ₹{tx.amount.toFixed(2)}
+                  </p>
+                  {tx.property_title && (
+                    <p className="text-sm text-gray-600">
+                      {tx.type === 'Payment' && `Payment for: ${tx.property_title}`}
+                      {tx.type === 'Payout' && `Earning from: ${tx.property_title}`}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground">{tx.description}</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(tx.created_at).toLocaleString()}
+                  </p>
                 </CardContent>
               </Card>
             ))}
