@@ -19,11 +19,19 @@ interface Ticket {
 export default function MaintenanceTicketsPage() {
   const [groupedTickets, setGroupedTickets] = useState<Record<string, Ticket[]>>({});
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
 
   useEffect(() => {
+    const userId = sessionStorage.getItem('userId');
     const fetchTickets = async () => {
       try {
-        const res = await fetch('/api/maintenance/assigned');
+        const res = await fetch(`${API_BASE_URL}/api/maintenance/assigned`,{
+          headers: {
+            'X-User-Id': userId || '',
+            'Content-Type': 'application/json',
+          }
+        });
         const data: Ticket[] = await res.json();
 
         const grouped: Record<string, Ticket[]> = {};
@@ -45,9 +53,11 @@ export default function MaintenanceTicketsPage() {
 
   const handleStatusChange = async (id: string, status: Ticket['status']) => {
     try {
-      await fetch(`/api/maintenance/${id}`, {
+      await fetch(`${API_BASE_URL}/api/maintenance/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'X-User-Id': sessionStorage.getItem('userId') || '', 
+          'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
 
