@@ -19,29 +19,51 @@ export default function AccountPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [amount, setAmount] = useState<number>(0);
   const [action, setAction] = useState<'deposit' | 'withdraw'>('deposit');
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   useEffect(() => {
-    const fetchData = async () => {
-      const res1 = await fetch('/api/common/account/balance');
-      const balanceData = await res1.json();
-      setBalance(balanceData.balance);
+    const userId = sessionStorage.getItem('userId');
+    if (!userId) return;
 
-      const res2 = await fetch('/api/common/account/transactions');
-      const txData = await res2.json();
-      setTransactions(txData);
+    const fetchData = async () => {
+      try {
+        const res1 = await fetch(`${API_BASE_URL}/api/common/account/balance`, {
+          headers: { 'X-User-Id': userId },
+        });
+        const balanceData = await res1.json();
+        if (balanceData?.balance !== undefined) {
+          setBalance(balanceData.balance);
+        }
+
+        const res2 = await fetch(`${API_BASE_URL}/api/common/account/transactions`, {
+          headers: { 'X-User-Id': userId },
+        });
+        const txData = await res2.json();
+        setTransactions(Array.isArray(txData) ? txData : []);
+      } catch (error) {
+        console.error('Error fetching account data:', error);
+      }
     };
+
     fetchData();
-  }, []);
+  }, [API_BASE_URL]);
 
   const handleTransaction = async () => {
-    const endpoint = action === 'deposit' ? '/api/common/account/deposit' : '/api/common/account/withdraw';
+    const userId = sessionStorage.getItem('userId');
+    if (!userId || amount <= 0) return alert("Invalid transaction");
+
+    const endpoint = `${API_BASE_URL}/api/common/account/${action}`;
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
       body: JSON.stringify({ amount }),
     });
+
     const result = await res.json();
-    alert(result.message);
+    alert(result.message || `${action} successful`);
     window.location.reload();
   };
 

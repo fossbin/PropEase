@@ -8,8 +8,7 @@ from app.api.routes import (
     leases,
     sales,
     subscriptions,
-    accounts,
-    account_transactions,
+    common_account_transactions,
     maintenance_tickets,
     admin_support_tickets,
     # reviews,
@@ -48,8 +47,7 @@ app.include_router(properties.router, prefix="/api")
 app.include_router(leases.router, prefix="/api/leases")
 app.include_router(sales.router, prefix="/api/sales")
 app.include_router(subscriptions.router, prefix="/api/subscriptions")
-app.include_router(accounts.router, prefix="/api/accounts")
-app.include_router(account_transactions.router, prefix="/api/transactions")
+app.include_router(common_account_transactions.router, prefix="/api")
 app.include_router(maintenance_tickets.router, prefix="/api")
 # app.include_router(reviews.router, prefix="/api/reviews")
 app.include_router(support_tickets.router, prefix="/api")
