@@ -1,4 +1,3 @@
-// app/(seeker)/reviews/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -17,15 +16,27 @@ interface ReviewableProperty {
 export default function SeekerReviewsPage() {
   const [properties, setProperties] = useState<ReviewableProperty[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchReviewables = async () => {
       try {
-        const res = await fetch('/api/seeker/reviewables');
+        const res = await fetch(`${API_BASE_URL}/api/seeker/reviewables`,{
+          headers: {
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+            'Content-Type': 'application/json',
+          }
+        });
         const data = await res.json();
-        setProperties(data);
+        if (Array.isArray(data)) {
+          setProperties(data);
+        } else {
+          console.error('Expected an array, got:', data);
+          setProperties([]); // fallback to empty
+        }
       } catch (err) {
         console.error('Failed to fetch reviewable properties:', err);
+        setProperties([]); // avoid undefined state
       }
     };
     fetchReviewables();
@@ -34,9 +45,11 @@ export default function SeekerReviewsPage() {
   const handleSubmit = async (property_id: string, rating: number, comment: string) => {
     setSubmitting(true);
     try {
-      await fetch(`/api/seeker/review/${property_id}`, {
+      await fetch(`${API_BASE_URL}/api/seeker/review/${property_id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('userId') || ''},
         body: JSON.stringify({ rating, comment }),
       });
       alert('Review submitted!');

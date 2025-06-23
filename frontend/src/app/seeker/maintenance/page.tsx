@@ -25,14 +25,24 @@ export default function MaintenancePage() {
   const [priority, setPriority] = useState('Medium');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchActiveProperties = async () => {
       try {
-        const res = await fetch('/api/seeker/active-properties');
+        const res = await fetch(`${API_BASE_URL}/api/seeker/active-properties`,{
+          headers:{
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+            'Content-Type': 'application/json'
+          }
+        });
         const data = await res.json();
-        setProperties(data);
-      } catch (err) {
+        if (Array.isArray(data)) {
+          setProperties(data);
+      } else {
+          setProperties([]); 
+      } 
+      }catch(err) {
         console.error('Failed to load active properties:', err);
       }
     };
@@ -43,9 +53,12 @@ export default function MaintenancePage() {
     if (!selectedProperty || !issueType || !description) return alert('Please fill all fields');
     setSubmitting(true);
     try {
-      const res = await fetch('/api/seeker/maintenance', {
+      const res = await fetch(`${API_BASE_URL}/api/seeker/maintenance`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('userId') || ''
+        },
         body: JSON.stringify({ property_id: selectedProperty, issue_type: issueType, priority, description })
       });
       if (res.ok) {
