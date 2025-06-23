@@ -18,7 +18,7 @@ export default function RoleSelectionPage() {
   }, [router]);
 
   const handleSelect = (role: 'seeker' | 'provider') => {
-    sessionStorage.setItem('userRole', role); // Store role in session
+    sessionStorage.setItem('userRole', role); 
     router.push(`/${role}`);
   };
 

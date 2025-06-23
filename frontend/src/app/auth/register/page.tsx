@@ -75,8 +75,8 @@ export default function RegisterPage() {
       sessionStorage.setItem('userId', data.user.id);
       }
 
-      sessionStorage.setItem('userRole', ''); // Store selected role for session
-      router.push('/select-role');
+      sessionStorage.setItem('userRole', ''); 
+      router.push('/auth/select-role');
 
     } catch (err: any) {
       setError('Something went wrong. Please try again.');

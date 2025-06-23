@@ -52,7 +52,7 @@ export default function LoginPage() {
       }
 
       sessionStorage.setItem('userRole', '');
-      router.push('/select-role');
+      router.push('/auth/select-role');
     } catch (err) {
       setError('Something went wrong. Please try again.');
     } finally {
