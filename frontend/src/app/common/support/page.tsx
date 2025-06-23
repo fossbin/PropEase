@@ -1,4 +1,3 @@
-// app/common/support/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -14,19 +13,29 @@ interface Ticket {
   priority: string;
   description: string;
   status: string;
+  role: string;
   created_at: string;
 }
 
 export default function CommonSupportPage() {
-  const [formData, setFormData] = useState({ subject: '', priority: 'Medium', description: '' });
+  const [formData, setFormData] = useState({ subject: '', priority: 'Medium', description: '', role: '' });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState('User');
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   useEffect(() => {
+    const userId = sessionStorage.getItem("userId");
+    const role = sessionStorage.getItem('userRole');
+    setUserRole(role || 'User');
+
     const fetchTickets = async () => {
       try {
-        const res = await fetch('/api/support-tickets');
-        const data = await res.json();
+        const res = await fetch(`${API_BASE_URL}/api/support-tickets`, {
+          headers: {
+            'X-User-Id': userId || '', // or Authorization: Bearer <token>
+          }
+        });        const data = await res.json();
         setTickets(data);
       } catch (err) {
         console.error('Failed to fetch tickets:', err);
@@ -42,14 +51,18 @@ export default function CommonSupportPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    const userId = sessionStorage.getItem('userId');
     e.preventDefault();
     try {
-      await fetch('/api/support-tickets', {
+      await fetch(`${API_BASE_URL}/api/support-tickets`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId || '',
+        },
+        body: JSON.stringify({ ...formData, role: userRole }), 
       });
-      setFormData({ subject: '', priority: 'Medium', description: '' });
+      setFormData({ subject: '', priority: 'Medium', description: '', role: userRole || 'User' });
       await new Promise((res) => setTimeout(res, 400)); // refresh delay
       location.reload();
     } catch (err) {
