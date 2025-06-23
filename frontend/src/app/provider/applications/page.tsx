@@ -1,4 +1,3 @@
-// app/(provider)/dashboard/applications/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -19,13 +18,21 @@ interface Application {
 export default function PropertyApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
+    const userId = sessionStorage.getItem('userId');
     const fetchApplications = async () => {
       try {
-        const res = await fetch('/api/applications/received');
+        const res = await fetch(`${API_BASE_URL}/api/applications/received`, {
+          headers: {
+            'X-User-Id': userId || '',
+            'Content-Type': 'application/json',
+          },
+        });
         const data = await res.json();
-        setApplications(data);
+        console.log('Fetched applications:', data);
+        setApplications(Array.isArray(data) ? data : data?.data || []);
       } catch (err) {
         console.error('Error fetching applications:', err);
       } finally {
@@ -33,14 +40,19 @@ export default function PropertyApplicationsPage() {
       }
     };
 
+
     fetchApplications();
   }, []);
 
   const handleAction = async (id: string, status: 'Approved' | 'Rejected') => {
+    const userId = sessionStorage.getItem('userId');
     try {
-      await fetch(`/api/applications/${id}`, {
+      await fetch(`${API_BASE_URL}/api/applications/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('userId') || ''
+        },
         body: JSON.stringify({ status }),
       });
       setApplications((prev) =>
