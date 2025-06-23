@@ -4,33 +4,9 @@ from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel
 from app.db.supabase import get_supabase_client as get_supabase
+from app.models.property import PropertyBase, PropertyLocation, PropertyWithLocation
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
-
-# Location model
-class PropertyLocation(BaseModel):
-    address_line: str
-    city: str
-    state: str
-    country: str
-    zipcode: str
-    latitude: float
-    longitude: float
-
-# Property model
-class PropertyBase(BaseModel):
-    title: str
-    description: str
-    type: str
-    status: Optional[str] = "Available"
-    price: float
-    pricing_type: str
-    capacity: int
-
-# Combined request model
-class PropertyWithLocation(BaseModel):
-    property: PropertyBase
-    location: PropertyLocation
 
 @router.post("/")
 def create_property(
@@ -52,7 +28,7 @@ def create_property(
         "price": payload.property.price,
         "pricing_type": payload.property.pricing_type,
         "capacity": payload.property.capacity,
-        "photos": [],
+        "photos": payload.property.photos or [],
     }
 
     prop_res = supabase.table("properties").insert(property_data).execute()
@@ -75,3 +51,39 @@ def create_property(
         "message": "Property and location created successfully",
         "property_id": property_id
     }
+
+@router.get("/owned")
+def get_owned_properties(
+    request: Request,
+    supabase: Client = Depends(get_supabase)
+):
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    result = supabase.table("properties") \
+        .select("id, title, type, status, price, pricing_type, capacity, approval_status, created_at") \
+        .eq("owner_id", user_id) \
+        .execute()
+
+    if result.data is None:
+        raise HTTPException(status_code=404, detail="No properties found")
+
+    return result.data
+
+
+@router.get("/{property_id}")
+def get_property_by_id(
+    property_id: UUID,
+    supabase: Client = Depends(get_supabase)
+):
+    result = supabase.table("properties") \
+        .select("*") \
+        .eq("id", str(property_id)) \
+        .single() \
+        .execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    return result.data

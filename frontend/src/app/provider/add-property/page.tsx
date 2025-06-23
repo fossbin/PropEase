@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import LocationPicker from '@/components/LocationPicker';
+import imageCompression from 'browser-image-compression';
+
 
 const propertyTypes = ['Apartment', 'PG', 'Land', 'Villa'];
 const pricingTypes = ['Fixed', 'Dynamic'];
@@ -23,6 +25,7 @@ export default function AddPropertyPage() {
     pricing_type: '',
     price: '',
     capacity: '',
+    photos: [] as string[],
     location: {
       address_line: '',
       city: '',
@@ -33,6 +36,34 @@ export default function AddPropertyPage() {
       longitude: '',
     },
   });
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newPhotos: string[] = [];
+    const options = {
+      maxSizeMB: 0.2,
+      maxWidthOrHeight: 800,
+      useWebWorker: true,
+    };
+
+    for (let i = 0; i < Math.min(files.length, 2); i++) {
+      const file = files[i];
+      try {
+        const compressed = await imageCompression(file, options);
+        const base64 = await imageCompression.getDataUrlFromFile(compressed);
+        newPhotos.push(base64);
+      } catch (err) {
+        console.error('Image compression failed:', err);
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      photos: [...newPhotos],
+    }));
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -186,16 +217,25 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        {/* <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="location.latitude">Latitude</Label>
-            <Input name="location.latitude" value={formData.location.latitude} onChange={handleChange} readOnly />
+        <div>
+          <Label htmlFor="photos">Upload Photos (max 2)</Label>
+          <Input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePhotoUpload}
+          />
+          <div className="flex gap-2 mt-2">
+            {formData.photos.map((src, index) => (
+              <img
+                key={index}
+                src={src}
+                alt={`photo-${index}`}
+                className="w-24 h-24 rounded object-cover border"
+              />
+            ))}
           </div>
-          <div>
-            <Label htmlFor="location.longitude">Longitude</Label>
-            <Input name="location.longitude" value={formData.location.longitude} onChange={handleChange} readOnly />
-          </div>
-        </div> */}
+        </div>
 
         <Button type="submit" className="mt-4">Submit Property</Button>
       </form>
