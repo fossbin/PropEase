@@ -29,13 +29,13 @@ export default function Navbar() {
 
         <div className="flex items-center space-x-3">
           <Link 
-            href="/login" 
+            href="/auth/login" 
             className="text-gray-700 hover:text-blue-600 font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-all"
           >
             Sign In
           </Link>
           <Link 
-            href="/register" 
+            href="/auth/register" 
             className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-all shadow-md hover:shadow-lg"
           >
             Register
