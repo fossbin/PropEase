@@ -1,9 +1,14 @@
-// app/(seeker)/explore/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
@@ -12,7 +17,7 @@ interface Property {
   id: string;
   title: string;
   type: string;
-  rating: number;
+  rating: number | null;
   price: number;
   photos: string[];
   city: string;
@@ -22,6 +27,7 @@ export default function ExplorePage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [filters, setFilters] = useState({ type: '', city: '', minRating: '' });
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
   const router = useRouter();
 
   useEffect(() => {
@@ -32,7 +38,7 @@ export default function ExplorePage() {
           ...(filters.city && { city: filters.city }),
           ...(filters.minRating && { minRating: filters.minRating }),
         });
-        const res = await fetch(`/api/seeker/explore?${query.toString()}`);
+        const res = await fetch(`${API_BASE_URL}/api/seeker/explore?${query.toString()}`);
         const data = await res.json();
         setProperties(data);
       } catch (err) {
@@ -86,10 +92,16 @@ export default function ExplorePage() {
                   <p className="text-sm text-gray-500">{p.city}</p>
                 </div>
                 {p.photos?.length > 0 && (
-                  <img src={p.photos[0]} alt={p.title} className="rounded-lg w-full h-40 object-cover" />
+                  <img
+                    src={p.photos[0]}
+                    alt={p.title}
+                    className="rounded-lg w-full h-40 object-cover"
+                  />
                 )}
-                <p className="text-sm">⭐ {p.rating?.toFixed(1) || 'N/A'} | ₹{p.price}</p>
-                <Button size="sm" onClick={() => router.push(`/explore/${p.id}`)}>
+                <p className="text-sm">
+                  ⭐ {p.rating?.toFixed(1) || 'N/A'} | ₹{p.price}
+                </p>
+                <Button size="sm" onClick={() => router.push(`/seeker/explore/${p.id}`)}>
                   View Details
                 </Button>
               </CardContent>
