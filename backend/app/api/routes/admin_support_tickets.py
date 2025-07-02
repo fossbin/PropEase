@@ -6,7 +6,7 @@ from app.dependencies import get_current_user
 from app.models.support import SupportTicketUpdate
 from app.core.config import settings
 
-router = APIRouter(prefix="/admin/support-tickets", tags=["Admin Support Tickets"])
+router = APIRouter(prefix="/support-tickets", tags=["Admin Support Tickets"])
 
 @router.get("/", response_model=List[dict])
 def admin_get_tickets(

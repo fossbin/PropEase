@@ -8,7 +8,7 @@ import os
 router = APIRouter()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_API_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ------------------------
@@ -17,7 +17,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 class SubscriptionBase(BaseModel):
     user_id: UUID
     property_id: UUID
-    subscription_type: str = Field(..., regex="^(Monthly|Quarterly)$")
+    subscription_type: str = Field(..., pattern="^(Monthly|Quarterly)$")
     start_date: date
     end_date: date
     price: float

@@ -1,14 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 from app.db.supabase import get_supabase_client
 from supabase import Client
+from app.models.user import UserProfileUpdate
 
 router = APIRouter(prefix="/user", tags=["User"])
-
-class UserProfileUpdate(BaseModel):
-    name: str
-    phone_number: str
-    picture: dict | None = None  # JSONB-compatible
 
 @router.patch("/profile")
 async def update_user_profile(

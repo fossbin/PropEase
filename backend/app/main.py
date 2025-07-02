@@ -12,8 +12,13 @@ from app.api.routes import (
     common_account_transactions,
     maintenance_tickets,
     admin_support_tickets,
+    admin_property,
     reviews,
     support_tickets,
+    admin_users,
+    explore,
+    property_detail,
+    property_apply,
 )
 
 app = FastAPI()
@@ -53,8 +58,12 @@ app.include_router(common_account_transactions.router, prefix="/api")
 app.include_router(maintenance_tickets.router, prefix="/api")
 app.include_router(reviews.router, prefix="/api")
 app.include_router(support_tickets.router, prefix="/api")
-app.include_router(admin_support_tickets.router, prefix="/api")
-
+app.include_router(admin_support_tickets.router, prefix="/api/admin")
+app.include_router(admin_property.router, prefix="/api/admin")
+app.include_router(admin_users.router, prefix="/api/admin")
+app.include_router(explore.router, prefix="/api")
+app.include_router(property_detail.router, prefix="/api")
+app.include_router(property_apply.router, prefix="/api")
 
 @app.get("/")
 def read_root():
