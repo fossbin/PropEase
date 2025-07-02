@@ -19,11 +19,18 @@ interface Ticket {
 export default function AdminSupportTicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
+    const userId = sessionStorage.getItem('userId');
     const fetchTickets = async () => {
       try {
-        const res = await fetch('/api/admin/support-tickets');
+        const res = await fetch(`${API_BASE_URL}/api/admin/support-tickets`,{
+          headers: {
+            'X-User-Id': userId || '',
+            'Content-Type': 'application/json',
+          }
+        });
         const data = await res.json();
         setTickets(data);
       } catch (err) {
@@ -37,9 +44,11 @@ export default function AdminSupportTicketsPage() {
 
   const updateStatus = async (id: string, status: string) => {
     try {
-      await fetch(`/api/admin/support-tickets/${id}`, {
+      await fetch(`${API_BASE_URL}/api/admin/support-tickets/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('userId') || '',},
         body: JSON.stringify({ status }),
       });
       setTickets((prev) =>

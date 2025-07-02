@@ -1,4 +1,3 @@
-// app/(admin)/users/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -18,11 +17,17 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState<Record<string, Partial<User>>>({});
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch('/api/admin/users');
+        const res = await fetch(`${API_BASE_URL}/api/admin/users`,{
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+          },
+        });
         const data = await res.json();
         setUsers(data);
       } catch (err) {
@@ -46,9 +51,12 @@ export default function AdminUsersPage() {
 
   const handleSave = async (id: string) => {
     try {
-      await fetch(`/api/admin/users/${id}`, {
+      await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('userId') || '',
+        },
         body: JSON.stringify(formData[id]),
       });
       setUsers((prev) =>
@@ -63,7 +71,13 @@ export default function AdminUsersPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     try {
-      await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { 
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('userId') || '',
+        }
+      });
       setUsers((prev) => prev.filter((u) => u.id !== id));
     } catch (err) {
       console.error('Delete failed:', err);
