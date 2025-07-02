@@ -1,5 +1,5 @@
 'use client';
-
+import { supabase } from '@/lib/supabaseClient';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import LocationPicker from '@/components/LocationPicker';
 import imageCompression from 'browser-image-compression';
+import Script from 'next/script'
+
 
 
 const propertyTypes = ['Apartment', 'PG', 'Land', 'Villa'];
@@ -26,6 +28,7 @@ export default function AddPropertyPage() {
     price: '',
     capacity: '',
     photos: [] as string[],
+    documents: [] as {name: string; path: string}[],
     location: {
       address_line: '',
       city: '',
@@ -84,6 +87,32 @@ export default function AddPropertyPage() {
     }
   };
 
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !userID) return;
+
+    const newDocs: { name: string; path: string }[] = [];
+
+    for (let i = 0; i < Math.min(files.length, 2); i++) {
+      const file = files[i];
+      const filePath = `property-files/${userID}/${Date.now()}-${file.name}`;
+
+      const { error } = await supabase.storage.from('property-files').upload(filePath, file);
+      if (error) {
+        console.error('File upload error:', error.message);
+        continue;
+      }
+
+      newDocs.push({ name: file.name, path: filePath });
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      documents: newDocs,
+    }));
+  };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -96,6 +125,8 @@ export default function AddPropertyPage() {
         price: parseFloat(formData.price),
         pricing_type: formData.pricing_type,
         capacity: parseInt(formData.capacity),
+        photos: formData.photos,
+        documents: [] as { name: string; path: string }[],
       },
       location: {
         ...formData.location,
@@ -169,6 +200,11 @@ export default function AddPropertyPage() {
           <Input type="number" name="capacity" value={formData.capacity} onChange={handleChange} />
         </div>
 
+        <Script
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=geometry`}
+          strategy="beforeInteractive"
+        />
+
         <div>
           <Label>Pick Location (Click on Map)</Label>
           <LocationPicker
@@ -236,6 +272,22 @@ export default function AddPropertyPage() {
             ))}
           </div>
         </div>
+
+        <div>
+          <Label htmlFor="documents">Upload Documents (PDF/DOCX, max 2)</Label>
+          <Input
+            type="file"
+            accept=".pdf,.doc,.docx"
+            multiple
+            onChange={handleDocumentUpload}
+          />
+          <ul className="mt-2 text-sm text-slate-600 list-disc list-inside">
+            {formData.documents.map((doc, index) => (
+              <li key={index}>{doc.name}</li>
+            ))}
+          </ul>
+        </div>
+
 
         <Button type="submit" className="mt-4">Submit Property</Button>
       </form>

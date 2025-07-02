@@ -18,7 +18,6 @@ def create_property(
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized: Missing user ID")
 
-    # Insert property
     property_data = {
         "owner_id": user_id,
         "title": payload.property.title,
@@ -29,6 +28,7 @@ def create_property(
         "pricing_type": payload.property.pricing_type,
         "capacity": payload.property.capacity,
         "photos": payload.property.photos or [],
+        "documents": getattr(payload.property, "documents", []), 
     }
 
     prop_res = supabase.table("properties").insert(property_data).execute()
@@ -37,7 +37,6 @@ def create_property(
 
     property_id = prop_res.data[0]["id"]
 
-    # Insert location
     location_data = {
         "property_id": property_id,
         **payload.location.dict()
@@ -51,6 +50,7 @@ def create_property(
         "message": "Property and location created successfully",
         "property_id": property_id
     }
+
 
 @router.get("/owned")
 def get_owned_properties(

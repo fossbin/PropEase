@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
 
-# Location model
 class PropertyLocation(BaseModel):
     address_line: str
     city: str
@@ -11,7 +10,6 @@ class PropertyLocation(BaseModel):
     latitude: float
     longitude: float
 
-# Property model
 class PropertyBase(BaseModel):
     title: str
     description: str
@@ -21,11 +19,10 @@ class PropertyBase(BaseModel):
     pricing_type: str
     capacity: int
     photos: Optional[list[str]] = []  
+    documents: Optional[list[dict]] = []
     approval_status: Optional[str] = "Pending"  
     rejection_reason: Optional[str] = None   
 
-
-# Combined request model
 class PropertyWithLocation(BaseModel):
     property: PropertyBase
     location: PropertyLocation
