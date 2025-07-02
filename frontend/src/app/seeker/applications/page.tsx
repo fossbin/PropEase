@@ -1,4 +1,3 @@
-// app/(seeker)/applications/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -16,13 +15,26 @@ interface Application {
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        const res = await fetch('/api/seeker/applications');
-        const data = await res.json();
-        setApplications(data);
+        const res = await fetch(`${API_BASE_URL}/api/seeker/applications`,{
+          headers: {
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+            'Content-Type': 'application/json',
+          },
+        });
+        const result = await res.json();
+        if(Array.isArray(result)) {
+          setApplications(result || []);
+        } else if (Array.isArray(result.data)) {
+          setApplications(result.data || []);
+        } else {
+          console.error('Unexpected response format:', result);
+          setApplications([]);
+        }
       } catch (err) {
         console.error('Failed to fetch applications:', err);
       } finally {
