@@ -22,6 +22,13 @@ export default function RoleSelectionPage() {
     router.push(`/${role}`);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    sessionStorage.removeItem('userRole');
+    localStorage.removeItem('userRole'); 
+    router.push('/auth/login');
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-700 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
@@ -41,6 +48,9 @@ export default function RoleSelectionPage() {
           className="w-full bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 transition"
         >
           I'm a Provider
+        </button>
+        <button onClick={handleLogout} className="w-full bg-gray-300 text-gray-800 py-3 rounded-xl hover:bg-gray-400 transition">
+          Back to Login
         </button>
       </div>
     </div>

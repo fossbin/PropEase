@@ -30,12 +30,6 @@ export default function RegisterPage() {
     setIsLoading(true);
     setError('');
 
-    if (!acceptTerms) {
-      setError('Please accept the terms and conditions');
-      setIsLoading(false);
-      return;
-    }
-
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setIsLoading(false);

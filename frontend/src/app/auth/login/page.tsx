@@ -39,10 +39,6 @@ export default function LoginPage() {
         return;
       }
 
-      if(data.user.email === "admin@gmail.com"){
-        router.push('/admin/');
-      }
-
       if (data.session) {
         localStorage.setItem('authToken', data.session.access_token);
       }
@@ -51,8 +47,12 @@ export default function LoginPage() {
       sessionStorage.setItem('userId', data.user.id);
       }
 
-      sessionStorage.setItem('userRole', '');
-      router.push('/auth/select-role');
+      if(data.user.email === "admin@gmail.com"){
+        router.push('/admin/');
+      } else {
+        sessionStorage.setItem('userRole', '');
+        router.push('/auth/select-role');
+      }
     } catch (err) {
       setError('Something went wrong. Please try again.');
     } finally {
