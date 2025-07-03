@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,40 +14,55 @@ interface Application {
   bid_amount?: number;
   lease_start?: string;
   lease_end?: string;
-  subscription_type?: string;
   subscription_start?: string;
   subscription_end?: string;
-  documents?: { name: string; url: string }[];
   property_title: string;
   applicant_name: string;
+  applicant_id: string;
   created_at: string;
+}
+
+interface Document {
+  id: string;
+  document_type: string;
+  document_url: string;
+  verified: boolean;
 }
 
 export default function ApplicationDetailPage() {
   const { id } = useParams();
   const [application, setApplication] = useState<Application | null>(null);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
-    const fetchApplication = async () => {
+    const fetchApplicationAndDocuments = async () => {
       try {
+        // Fetch application details
         const res = await fetch(`${API_BASE_URL}/api/applications/${id}`, {
           headers: {
             'X-User-Id': sessionStorage.getItem('userId') || '',
           },
         });
-        const data = await res.json();
-        setApplication(data);
+        const appData = await res.json();
+        setApplication(appData);
+
+        // Fetch user documents
+        if (appData?.applicant_id) {
+          const docRes = await fetch(`${API_BASE_URL}/api/users/${appData.applicant_id}/documents`);
+          const docs = await docRes.json();
+          setDocuments(docs);
+        }
       } catch (err) {
-        console.error('Error loading application:', err);
+        console.error('Error loading application or documents:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) fetchApplication();
+    if (id) fetchApplicationAndDocuments();
   }, [id]);
 
   const handleUpdate = async (status: 'Approved' | 'Rejected') => {
@@ -101,21 +116,26 @@ export default function ApplicationDetailPage() {
             <p><strong>Lease Duration:</strong> {format(new Date(application.lease_start), 'dd MMM yyyy')} - {format(new Date(application.lease_end), 'dd MMM yyyy')}</p>
           )}
 
-          {application.subscription_type && application.subscription_start && application.subscription_end && (
+          {application.subscription_start && application.subscription_end && (
             <>
-              <p><strong>Subscription:</strong> {application.subscription_type}</p>
+              <p><strong>Subscription:</strong></p>
               <p><strong>From:</strong> {format(new Date(application.subscription_start), 'dd MMM yyyy')} to {format(new Date(application.subscription_end), 'dd MMM yyyy')}</p>
             </>
           )}
 
-          {application.documents && application.documents.length > 0 && (
+          {documents.length > 0 && (
             <div>
               <strong>Documents:</strong>
               <ul className="list-disc ml-5">
-                {application.documents.map((doc, index) => (
-                  <li key={index}>
-                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                      {doc.name}
+                {documents.map((doc) => (
+                  <li key={doc.id}>
+                    <a
+                      href={doc.document_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      {doc.document_type} {doc.verified ? '(Verified)' : '(Not Verified)'}
                     </a>
                   </li>
                 ))}

@@ -23,10 +23,18 @@ interface Property {
   type: string; // 'Apartment', 'PG', 'Land'
 }
 
+interface UserDocument {
+  id: string;
+  document_url: string;
+  document_type: string;
+  verified: boolean;
+}
+
 export default function ApplyPropertyPage() {
   const { id } = useParams();
   const router = useRouter();
   const [property, setProperty] = useState<Property | null>(null);
+  const [userDocuments, setUserDocuments] = useState<UserDocument[]>([]);
   const [message, setMessage] = useState('');
   const [bidAmount, setBidAmount] = useState('');
   const [leaseStart, setLeaseStart] = useState('');
@@ -34,7 +42,6 @@ export default function ApplyPropertyPage() {
   const [subscriptionType, setSubscriptionType] = useState('');
   const [subscriptionStart, setSubscriptionStart] = useState('');
   const [subscriptionEnd, setSubscriptionEnd] = useState('');
-  const [documents, setDocuments] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
@@ -48,14 +55,29 @@ export default function ApplyPropertyPage() {
         console.error('Error loading property info:', err);
       }
     };
+
+    const fetchUserProfile = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/user/profile`, {
+          headers: {
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+          },
+        });
+        const data = await res.json();
+        setUserDocuments(data.user_documents || []);
+      } catch (err) {
+        console.error('Error loading user documents:', err);
+      }
+    };
+
     if (id) fetchProperty();
+    fetchUserProfile();
   }, [id]);
 
   const handleSubmit = async () => {
     if (!message) return alert('Message is required');
     const type = property?.type;
 
-    // Validate type-specific inputs
     if (type === 'Apartment') {
       if (!leaseStart || !leaseEnd) return alert('Lease start and end dates are required');
     }
@@ -68,8 +90,6 @@ export default function ApplyPropertyPage() {
 
     const formData = new FormData();
     formData.append('message', message);
-    if (documents) formData.append('documents', documents);
-
     if (bidAmount) formData.append('bid_amount', bidAmount);
 
     if (type === 'Apartment') {
@@ -78,7 +98,6 @@ export default function ApplyPropertyPage() {
     }
 
     if (type === 'PG') {
-      formData.append('subscription_type', subscriptionType);
       formData.append('subscription_start', subscriptionStart);
       formData.append('subscription_end', subscriptionEnd);
     }
@@ -191,11 +210,25 @@ export default function ApplyPropertyPage() {
           </div>
         )}
 
-        <Input
-          type="file"
-          accept="application/pdf,image/*"
-          onChange={(e) => setDocuments(e.target.files?.[0] || null)}
-        />
+        {userDocuments.length > 0 && (
+          <div>
+            <h3 className="text-lg font-medium">Your Uploaded Documents</h3>
+            <ul className="list-disc ml-5">
+              {userDocuments.map((doc) => (
+                <li key={doc.id}>
+                  <a
+                    href={doc.document_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                  >
+                    {doc.document_type} {doc.verified ? '(Verified)' : '(Unverified)'}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <Button onClick={handleSubmit} disabled={submitting}>
           {submitting ? 'Submitting...' : 'Submit Application'}

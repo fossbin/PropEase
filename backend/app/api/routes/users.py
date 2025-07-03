@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from app.db.supabase import get_supabase_client
 from supabase import Client
 from app.models.user import UserProfileUpdate
-from fastapi import UploadFile, File, Form
 
 router = APIRouter(prefix="/user", tags=["User"])
 
@@ -52,6 +51,9 @@ async def upload_document(
     supabase: Client = Depends(get_supabase_client)
 ):
     from datetime import datetime
+    import os
+
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
 
     timestamp = datetime.utcnow().isoformat().replace(":", "-")
     storage_path = f"{user_id}/{timestamp}_{filename}"
@@ -75,3 +77,23 @@ async def upload_document(
     }).execute()
 
     return {"message": "Document uploaded"}
+
+@router.get("/{user_id}/documents")
+async def get_user_documents(user_id: str, supabase: Client = Depends(get_supabase_client)):
+    """
+    Fetch all uploaded documents for a given user from user_documents table.
+    """
+    result = supabase.table("user_documents").select("*").eq("user_id", user_id).order("uploaded_at", desc=True).execute()
+    
+    if not result.data:
+        return []
+
+    return [
+        {
+            "id": doc["id"],
+            "document_type": doc["document_type"],
+            "document_url": doc["document_url"],
+            "verified": doc.get("verified", False)
+        }
+        for doc in result.data
+    ]

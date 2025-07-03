@@ -16,7 +16,6 @@ def submit_application(
     bid_amount: Optional[float] = Form(None),
     lease_start: Optional[date] = Form(None),
     lease_end: Optional[date] = Form(None),
-    subscription_type: Optional[str] = Form(None),
     subscription_start: Optional[date] = Form(None),
     subscription_end: Optional[date] = Form(None),
     user=Depends(get_current_user),
@@ -41,7 +40,6 @@ def submit_application(
         "bid_amount": bid_amount,
         "lease_start": lease_start,
         "lease_end": lease_end,
-        "subscription_type": subscription_type,
         "subscription_start": subscription_start,
         "subscription_end": subscription_end,
         "status": "Pending"
@@ -93,10 +91,27 @@ def fetch_received_applications(user=Depends(get_current_user), supabase=Depends
 
 @router.get("/{application_id}")
 def get_application_detail(application_id: UUID, supabase=Depends(get_supabase)):
-    response = supabase.table("applications").select("*").eq("id", str(application_id)).single().execute()
-    if not response or not response.data:
+
+    app_res = supabase.table("applications").select("*").eq("id", str(application_id)).single().execute()
+    if not app_res or not app_res.data:
         raise HTTPException(status_code=404, detail="Application not found")
-    return response.data
+
+    app_data = app_res.data
+    applicant_id = app_data["applicant_id"]
+
+    user_res = supabase.table("users").select("id, name, email, phone_number").eq("id", applicant_id).single().execute()
+    user_data = user_res.data if user_res and user_res.data else {}
+
+    docs_res = supabase.table("user_documents").select("id, document_url, document_type, verified").eq("user_id", applicant_id).execute()
+    user_documents = docs_res.data if docs_res and docs_res.data else []
+
+    app_data["applicant_name"] = user_data.get("name", "Unknown")
+    app_data["applicant_email"] = user_data.get("email", "")
+    app_data["applicant_phone"] = user_data.get("phone_number", "")
+    app_data["user_documents"] = user_documents
+
+    return app_data
+
 
 
 @router.patch("/{application_id}")
@@ -148,12 +163,11 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             }
             supabase.table("sales").insert(sale_payload).execute()
 
-        elif prop_type == "PG" and app.get("subscription_type"):
+        elif prop_type == "PG":
             sub_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],
                 "user_id": app["applicant_id"],
-                "subscription_type": app["subscription_type"],
                 "start_date": app["subscription_start"],
                 "end_date": app["subscription_end"],
                 "price": property_data.get("price"),

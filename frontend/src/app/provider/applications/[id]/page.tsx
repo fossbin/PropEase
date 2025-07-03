@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+
+interface Document {
+  id: string;
+  document_url: string;
+  document_type: string;
+  verified: boolean;
+}
 
 interface Application {
   id: string;
@@ -14,19 +21,25 @@ interface Application {
   bid_amount?: number;
   lease_start?: string;
   lease_end?: string;
-  subscription_type?: string;
   subscription_start?: string;
   subscription_end?: string;
-  documents?: { name: string; url: string }[];
   property_title: string;
+  applicant_id: string;
   applicant_name: string;
   created_at: string;
 }
 
+interface UserProfile {
+  name: string;
+  phone_number: string;
+  email: string;
+}
+
 export default function ApplicationDetailPage() {
   const { id } = useParams();
-  const router = useRouter();
   const [application, setApplication] = useState<Application | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userDocuments, setUserDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
@@ -35,14 +48,26 @@ export default function ApplicationDetailPage() {
     const fetchApplication = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/applications/${id}`, {
-          headers: {
-            'X-User-Id': sessionStorage.getItem('userId') || '',
-          },
+          headers: { 'X-User-Id': sessionStorage.getItem('userId') || '' },
         });
         const data = await res.json();
         setApplication(data);
+
+        // Fetch user profile
+        const profileRes = await fetch(`${API_BASE_URL}/user/${data.applicant_id}`, {
+          headers: { 'X-User-Id': sessionStorage.getItem('userId') || '' },
+        });
+        const profile = await profileRes.json();
+        setUserProfile(profile);
+
+        // Fetch user documents
+        const docsRes = await fetch(`${API_BASE_URL}/user/${data.applicant_id}/documents`, {
+          headers: { 'X-User-Id': sessionStorage.getItem('userId') || '' },
+        });
+        const docs = await docsRes.json();
+        setUserDocuments(docs);
       } catch (err) {
-        console.error('Error loading application:', err);
+        console.error('Error loading data:', err);
       } finally {
         setLoading(false);
       }
@@ -78,7 +103,7 @@ export default function ApplicationDetailPage() {
       <h1 className="text-2xl font-bold">Application to: {application.property_title}</h1>
 
       <Card>
-        <CardContent className="space-y-2 p-4">
+        <CardContent className="space-y-3 p-4">
           <div className="flex justify-between items-center">
             <p><strong>Applicant:</strong> {application.applicant_name}</p>
             <Badge variant={
@@ -92,6 +117,14 @@ export default function ApplicationDetailPage() {
             </Badge>
           </div>
 
+          {userProfile && (
+            <div className="space-y-1">
+              <p><strong>Name:</strong> {userProfile.name}</p>
+              <p><strong>Email:</strong> {userProfile.email}</p>
+              <p><strong>Phone:</strong> {userProfile.phone_number || 'N/A'}</p>
+            </div>
+          )}
+
           <p><strong>Message:</strong> {application.message || 'N/A'}</p>
 
           {application.bid_amount && (
@@ -99,24 +132,37 @@ export default function ApplicationDetailPage() {
           )}
 
           {application.lease_start && application.lease_end && (
-            <p><strong>Lease Duration:</strong> {format(new Date(application.lease_start), 'dd MMM yyyy')} - {format(new Date(application.lease_end), 'dd MMM yyyy')}</p>
+            <p>
+              <strong>Lease Duration:</strong>{' '}
+              {format(new Date(application.lease_start), 'dd MMM yyyy')} -{' '}
+              {format(new Date(application.lease_end), 'dd MMM yyyy')}
+            </p>
           )}
 
-          {application.subscription_type && application.subscription_start && application.subscription_end && (
+          {application.subscription_start && application.subscription_end && (
             <>
-              <p><strong>Subscription:</strong> {application.subscription_type}</p>
-              <p><strong>From:</strong> {format(new Date(application.subscription_start), 'dd MMM yyyy')} to {format(new Date(application.subscription_end), 'dd MMM yyyy')}</p>
+              <p><strong>Subscription</strong></p>
+              <p>
+                <strong>From:</strong>{' '}
+                {format(new Date(application.subscription_start), 'dd MMM yyyy')} to{' '}
+                {format(new Date(application.subscription_end), 'dd MMM yyyy')}
+              </p>
             </>
           )}
 
-          {application.documents && application.documents.length > 0 && (
+          {userDocuments.length > 0 && (
             <div>
-              <strong>Documents:</strong>
+              <strong>User Documents:</strong>
               <ul className="list-disc ml-5">
-                {application.documents.map((doc, index) => (
-                  <li key={index}>
-                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                      {doc.name}
+                {userDocuments.map((doc) => (
+                  <li key={doc.id}>
+                    <a
+                      href={doc.document_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      {doc.document_type} {doc.verified ? '(Verified)' : '(Unverified)'}
                     </a>
                   </li>
                 ))}
@@ -128,17 +174,10 @@ export default function ApplicationDetailPage() {
 
           {application.status === 'Pending' && (
             <div className="flex gap-2 mt-4">
-              <Button
-                onClick={() => handleUpdate('Approved')}
-                disabled={updating}
-              >
+              <Button onClick={() => handleUpdate('Approved')} disabled={updating}>
                 Approve
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => handleUpdate('Rejected')}
-                disabled={updating}
-              >
+              <Button variant="destructive" onClick={() => handleUpdate('Rejected')} disabled={updating}>
                 Reject
               </Button>
             </div>
