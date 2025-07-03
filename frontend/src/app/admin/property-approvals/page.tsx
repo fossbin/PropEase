@@ -1,22 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 
 interface Property {
   id: string;
   title: string;
   type: string;
-  pricing_type: string;
+  transaction_type: string;
+  is_negotiable: boolean;
   status: string;
   created_at: string;
   owner_name: string;
   verified: boolean;
 }
+
 
 export default function PropertyApprovalsPage() {
   const [pendingProperties, setPendingProperties] = useState<Property[]>([]);
@@ -93,7 +93,10 @@ export default function PropertyApprovalsPage() {
                   <h3 className="font-medium text-lg">{property.title}</h3>
                   <Badge>{property.type}</Badge>
                 </div>
-                <p className="text-sm text-gray-700">Pricing: {property.pricing_type}</p>
+                <p className="text-sm text-gray-700">
+                  Transaction: {property.transaction_type}
+                  {property.is_negotiable && <Badge variant="outline" className="ml-2">Negotiable</Badge>}
+                </p>
                 <p className="text-sm text-gray-500">Posted by: {property.owner_name}</p>
                 <p className="text-xs text-gray-400">Created at: {new Date(property.created_at).toLocaleString()}</p>
 

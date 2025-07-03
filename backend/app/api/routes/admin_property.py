@@ -17,7 +17,18 @@ def get_pending_properties(
         raise HTTPException(status_code=403, detail="Only admins can access this route.")
 
     result = supabase.table("properties").select(
-        "id, title, type, pricing_type, status, created_at, verified, owner_id, users!owner_id(name)"
+        """
+        id,
+        title,
+        type,
+        transaction_type,
+        status,
+        created_at,
+        verified,
+        approval_status,
+        owner_id,
+        users!owner_id(name)
+        """
     ).eq("approval_status", "Pending").execute()
 
     if not result.data:
@@ -42,11 +53,20 @@ def get_property_details(
     if user["email"] not in settings.ADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Admins only.")
 
-    result = supabase.table("properties").select("*").eq("id", str(property_id)).single().execute()
-    if not result.data:
+    property_result = supabase.table("properties").select("*").eq("id", str(property_id)).single().execute()
+    if not property_result.data:
         raise HTTPException(status_code=404, detail="Property not found.")
 
-    return result.data
+    location_result = supabase.table("property_locations").select("*").eq("property_id", str(property_id)).single().execute()
+    location_data = location_result.data if location_result.data else {}
+
+    # Merge property and location data
+    full_data = {
+        **property_result.data,
+        "location": location_data
+    }
+
+    return full_data
 
 
 @router.post("/properties/{property_id}/approve")
@@ -72,7 +92,7 @@ def approve_property(
 @router.post("/properties/{property_id}/reject")
 def reject_property(
     property_id: UUID,
-    reason: dict = Body(..., example={"reason": "Missing photos or location"}),
+    reason: dict = Body(..., example={"reason": "Incomplete documentation"}),
     user=Depends(get_current_user),
     supabase: Client = Depends(get_supabase)
 ):

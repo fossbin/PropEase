@@ -12,13 +12,25 @@ interface PropertyDetail {
   description: string;
   type: string;
   status: string;
-  pricing_type: string;
+  transaction_type: string;
+  is_negotiable: boolean;
   capacity: number;
+  occupancy: number;
   price: number;
   created_at: string;
   approval_status: string;
   rejection_reason: string | null;
-  photos: string[]; // Assuming URLs in array
+  photos: string[];
+  documents: { name: string; path: string }[];
+  location: {
+    address_line: string;
+    city: string;
+    state: string;
+    country: string;
+    zipcode: string;
+    latitude: number;
+    longitude: number;
+  };
 }
 
 export default function PropertyDetailPage() {
@@ -26,7 +38,7 @@ export default function PropertyDetailPage() {
   const router = useRouter();
   const [property, setProperty] = useState<PropertyDetail | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
-
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
@@ -76,16 +88,51 @@ export default function PropertyDetailPage() {
           <p><strong>Title:</strong> {property.title}</p>
           <p><strong>Type:</strong> {property.type}</p>
           <p><strong>Status:</strong> {property.status}</p>
-          <p><strong>Pricing Type:</strong> {property.pricing_type}</p>
+          <p><strong>Transaction Type:</strong> {property.transaction_type}</p>
+          <p><strong>Negotiable:</strong> {property.is_negotiable ? 'Yes' : 'No'}</p>
           <p><strong>Capacity:</strong> {property.capacity}</p>
+          <p><strong>Occupancy:</strong> {property.occupancy} / {property.capacity}</p>
           <p><strong>Price:</strong> ₹{property.price}</p>
           <p><strong>Description:</strong> {property.description}</p>
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            {property.photos?.map((url, i) => (
-              <img key={i} src={url} alt="photo" className="rounded-lg w-full h-48 object-cover" />
-            ))}
+
+          <div>
+            <strong>Photos:</strong>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              {property.photos?.map((url, i) => (
+                <img key={i} src={url} alt="photo" className="rounded-lg w-full h-48 object-cover" />
+              ))}
+            </div>
           </div>
+
+          <div>
+            <strong>Documents:</strong>
+            <ul className="list-disc list-inside text-sm text-gray-700">
+              {property.documents?.map((doc, i) => (
+                <li key={i}>
+                  <a
+                    href={`${SUPABASE_URL}/storage/v1/object/public/property-files/${doc.path}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                  >
+                    {doc.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <strong>Location:</strong>
+            <p>{property.location.address_line}</p>
+            <p>{property.location.city}, {property.location.state}</p>
+            <p>{property.location.country} - {property.location.zipcode}</p>
+            <p>Latitude: {property.location.latitude}, Longitude: {property.location.longitude}</p>
+          </div>
+
+          <p className="text-xs text-gray-500">Created at: {new Date(property.created_at).toLocaleString()}</p>
         </CardContent>
+
       </Card>
 
       <div className="space-y-2">
