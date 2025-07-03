@@ -25,7 +25,6 @@ interface Application {
 
 export default function ApplicationDetailPage() {
   const { id } = useParams();
-  const router = useRouter();
   const [application, setApplication] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);

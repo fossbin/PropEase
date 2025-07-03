@@ -20,10 +20,11 @@ export default function UserProfilePage() {
     phone_number: '',
     picture: null,
   });
+
+  const [documents, setDocuments] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-
 
   useEffect(() => {
     const userId = sessionStorage.getItem('userId');
@@ -96,12 +97,36 @@ export default function UserProfilePage() {
     }
   };
 
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setDocuments(Array.from(e.target.files));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const userId = sessionStorage.getItem('userId');
     if (!userId) return;
 
     try {
+      // Upload documents first
+      for (const file of documents) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('filename', file.name);
+        formData.append('user_id', userId);
+
+        const docUploadRes = await fetch(`${API_BASE_URL}/api/user/upload-document`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!docUploadRes.ok) {
+          throw new Error(`Failed to upload document: ${file.name}`);
+        }
+      }
+
+      // Then update profile
       await fetch(`${API_BASE_URL}/api/user/profile`, {
         method: 'PATCH',
         headers: {
@@ -110,9 +135,11 @@ export default function UserProfilePage() {
         },
         body: JSON.stringify(profile),
       });
-      alert('Profile updated successfully');
+
+      alert('Profile and documents updated successfully');
     } catch (err) {
       console.error('Update error:', err);
+      alert('Failed to update profile or upload documents');
     }
   };
 
@@ -141,6 +168,18 @@ export default function UserProfilePage() {
               alt="Preview"
               className="mt-2 w-32 h-32 rounded-full object-cover"
             />
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="documents">Upload Documents</Label>
+          <Input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={handleDocumentChange} />
+          {documents.length > 0 && (
+            <ul className="mt-2 list-disc list-inside text-sm text-gray-600">
+              {documents.map((doc, idx) => (
+                <li key={idx}>{doc.name}</li>
+              ))}
+            </ul>
           )}
         </div>
 

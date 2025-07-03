@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.db.supabase import get_supabase_client
 from supabase import Client
 from app.models.user import UserProfileUpdate
+from fastapi import UploadFile, File, Form
 
 router = APIRouter(prefix="/user", tags=["User"])
 
@@ -42,3 +43,35 @@ async def get_user_profile(
         raise HTTPException(status_code=404, detail="User not found")
 
     return res.data
+
+@router.post("/upload-document")
+async def upload_document(
+    file: UploadFile = File(...),
+    filename: str = Form(...),
+    user_id: str = Form(...),
+    supabase: Client = Depends(get_supabase_client)
+):
+    from datetime import datetime
+
+    timestamp = datetime.utcnow().isoformat().replace(":", "-")
+    storage_path = f"{user_id}/{timestamp}_{filename}"
+
+    file_content = await file.read()
+    res = supabase.storage.from_("user-documents").upload(
+        storage_path,
+        file_content,
+        {"content-type": file.content_type}
+    )
+
+    if res.get("error"):
+        raise HTTPException(status_code=500, detail="Failed to upload document")
+
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/user-documents/{storage_path}"
+
+    supabase.table("user_documents").insert({
+        "user_id": user_id,
+        "document_type": file.content_type,
+        "document_url": public_url,
+    }).execute()
+
+    return {"message": "Document uploaded"}
