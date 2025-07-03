@@ -17,27 +17,38 @@ interface Property {
   id: string;
   title: string;
   type: string;
+  transaction_type: string;
   rating: number | null;
   price: number;
   photos: string[];
   city: string;
+  occupancy?: number;
+  capacity?: number;
 }
 
 export default function ExplorePage() {
   const [properties, setProperties] = useState<Property[]>([]);
-  const [filters, setFilters] = useState({ type: '', city: '', minRating: '' });
+  const [filters, setFilters] = useState({
+    type: '',
+    city: '',
+    minRating: '',
+    transaction_type: '',
+  });
   const [loading, setLoading] = useState(true);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
   const router = useRouter();
 
   useEffect(() => {
     const fetchProperties = async () => {
+      setLoading(true);
       try {
         const query = new URLSearchParams({
           ...(filters.type && { type: filters.type }),
           ...(filters.city && { city: filters.city }),
           ...(filters.minRating && { minRating: filters.minRating }),
+          ...(filters.transaction_type && { transaction_type: filters.transaction_type }),
         });
+
         const res = await fetch(`${API_BASE_URL}/api/seeker/explore?${query.toString()}`);
         const data = await res.json();
         setProperties(data);
@@ -47,6 +58,7 @@ export default function ExplorePage() {
         setLoading(false);
       }
     };
+
     fetchProperties();
   }, [filters]);
 
@@ -54,7 +66,7 @@ export default function ExplorePage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Explore Properties</h1>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-4 gap-4">
         <Select onValueChange={(val) => setFilters((f) => ({ ...f, type: val }))}>
           <SelectTrigger>
             <SelectValue placeholder="Filter by Type" />
@@ -63,6 +75,18 @@ export default function ExplorePage() {
             <SelectItem value="Apartment">Apartment</SelectItem>
             <SelectItem value="PG">PG</SelectItem>
             <SelectItem value="Land">Land</SelectItem>
+            <SelectItem value="Villa">Villa</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select onValueChange={(val) => setFilters((f) => ({ ...f, transaction_type: val }))}>
+          <SelectTrigger>
+            <SelectValue placeholder="Filter by Transaction" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Lease">Lease</SelectItem>
+            <SelectItem value="Sale">Sale</SelectItem>
+            <SelectItem value="Subscription">Subscription</SelectItem>
           </SelectContent>
         </Select>
 
@@ -82,31 +106,60 @@ export default function ExplorePage() {
 
       {loading ? (
         <p>Loading listings...</p>
+      ) : properties.length === 0 ? (
+        <p className="text-gray-500 italic">No properties found matching the filters.</p>
       ) : (
         <div className="grid md:grid-cols-2 gap-4 mt-4">
-          {properties.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="p-4 space-y-2">
-                <div className="flex justify-between">
-                  <h2 className="font-semibold">{p.title}</h2>
-                  <p className="text-sm text-gray-500">{p.city}</p>
-                </div>
-                {p.photos?.length > 0 && (
-                  <img
-                    src={p.photos[0]}
-                    alt={p.title}
-                    className="rounded-lg w-full h-40 object-cover"
-                  />
-                )}
-                <p className="text-sm">
-                  ⭐ {p.rating?.toFixed(1) || 'N/A'} | ₹{p.price}
-                </p>
-                <Button size="sm" onClick={() => router.push(`/seeker/explore/${p.id}`)}>
-                  View Details
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+          {properties.map((p) => {
+            const isPG = p.transaction_type === 'Subscription';
+            const occupancy = p.occupancy ?? 0;
+            const capacity = p.capacity ?? 0;
+            const available = capacity - occupancy;
+
+            return (
+              <Card key={p.id}>
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <h2 className="font-semibold text-lg">{p.title}</h2>
+                    <p className="text-sm text-gray-500">{p.city}</p>
+                  </div>
+
+                  {p.photos?.[0] ? (
+                    <img
+                      src={p.photos[0]}
+                      alt={p.title}
+                      className="rounded-lg w-full h-40 object-cover"
+                    />
+                  ) : (
+                    <div className="bg-gray-100 rounded-lg w-full h-40 flex items-center justify-center text-sm text-gray-400">
+                      No Image
+                    </div>
+                  )}
+
+                  <p className="text-sm text-gray-600">
+                    🏷 {p.type} | 💼 {p.transaction_type}
+                  </p>
+
+                  <p className="text-sm">
+                    ⭐ {p.rating?.toFixed(1) ?? 'N/A'} | ₹{p.price}
+                  </p>
+
+                  {isPG && (
+                    <p className="text-sm text-blue-600">
+                      🛏 {occupancy}/{capacity} occupied, {available} available
+                    </p>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={() => router.push(`/seeker/explore/${p.id}`)}
+                  >
+                    View Details
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -9,12 +9,14 @@ interface Property {
   id: string;
   title: string;
   type: string;
+  transaction_type: 'Sale' | 'Lease' | 'PG';
   description: string;
   price: number;
   pricing_type: string;
   capacity: number;
+  occupancy: number;
   photos: string[];
-  rating: number;
+  rating: number | null;
   city: string;
   address_line: string;
   state: string;
@@ -22,6 +24,7 @@ interface Property {
   zipcode: string;
   status: string;
   owner_id: string;
+  is_negotiable: boolean;
 }
 
 export default function PropertyDetailPage() {
@@ -43,6 +46,20 @@ export default function PropertyDetailPage() {
     if (id) fetchProperty();
   }, [id]);
 
+  const getActionLabel = () => {
+    if (!property) return 'Proceed';
+    switch (property.transaction_type) {
+      case 'Sale':
+        return 'Buy this Property';
+      case 'Lease':
+        return 'Rent this Property';
+      case 'PG':
+        return 'Subscribe to this Property';
+      default:
+        return 'Proceed';
+    }
+  };
+
   if (!property) return <p>Loading property details...</p>;
 
   return (
@@ -50,28 +67,47 @@ export default function PropertyDetailPage() {
       <h1 className="text-3xl font-bold">{property.title}</h1>
 
       {property.photos?.length > 0 && (
-        <img
-          src={property.photos[0]}
-          alt={property.title}
-          className="w-full rounded-xl max-h-80 object-cover"
-        />
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {property.photos.map((src, idx) => (
+            <img
+              key={idx}
+              src={src}
+              alt={`property-photo-${idx}`}
+              className="w-64 h-40 object-cover rounded-lg shadow"
+            />
+          ))}
+        </div>
       )}
 
       <Card>
         <CardContent className="space-y-3 p-4">
           <p><strong>Type:</strong> {property.type}</p>
+          <p><strong>Transaction:</strong> {property.transaction_type}</p>
           <p><strong>Status:</strong> {property.status}</p>
-          <p><strong>Price:</strong> ₹{property.price} ({property.pricing_type})</p>
+          <p>
+            <strong>Price:</strong> ₹{property.price.toLocaleString()}{' '}
+            {property.is_negotiable && <span className="text-sm text-gray-500">(Negotiable)</span>}
+          </p>
+          <p><strong>Pricing:</strong> {property.pricing_type}</p>
           <p><strong>Capacity:</strong> {property.capacity} people</p>
+          {property.transaction_type === 'PG' && (
+            <>
+              <p><strong>Occupancy:</strong> {property.occupancy ?? 0} / {property.capacity}</p>
+              <p><strong>Availability:</strong> {property.capacity - (property.occupancy ?? 0)} slots</p>
+            </>
+          )}
           <p><strong>Rating:</strong> ⭐ {property.rating?.toFixed(1) || 'N/A'}</p>
           <p><strong>City:</strong> {property.city}</p>
-          <p><strong>Address:</strong> {property.address_line}, {property.city}, {property.state}, {property.zipcode}, {property.country}</p>
+          <p>
+            <strong>Address:</strong> {property.address_line}, {property.city}, {property.state},{' '}
+            {property.zipcode}, {property.country}
+          </p>
           <p><strong>Description:</strong> {property.description}</p>
         </CardContent>
       </Card>
 
       <Button className="mt-4" onClick={() => router.push(`/seeker/apply/${property.id}`)}>
-        Apply for this Property
+        {getActionLabel()}
       </Button>
     </div>
   );

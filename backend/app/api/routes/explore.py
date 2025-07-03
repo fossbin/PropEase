@@ -10,12 +10,15 @@ def explore_properties(
     type: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
     minRating: Optional[float] = Query(None),
+    transaction_type: Optional[str] = Query(None),
     supabase: Client = Depends(get_supabase)
 ):
     query = (
         supabase.table("properties")
-        .select("id, title, type, rating, price, photos, verified, approval_status, status, "
-                "property_locations(city)")
+        .select(
+            "id, title, type, rating, price, photos, verified, approval_status, status, "
+            "transaction_type, occupancy, capacity, property_locations(city)"
+        )
         .eq("verified", True)
         .eq("approval_status", "Approved")
         .eq("status", "Available")
@@ -27,6 +30,8 @@ def explore_properties(
         query = query.gte("rating", minRating)
     if city:
         query = query.ilike("property_locations.city", f"%{city}%")
+    if transaction_type:
+        query = query.eq("transaction_type", transaction_type)
 
     result = query.order("created_at", desc=True).execute()
 
@@ -41,10 +46,13 @@ def explore_properties(
             "id": item["id"],
             "title": item["title"],
             "type": item["type"],
+            "transaction_type": item.get("transaction_type"),
             "rating": float(item["rating"]) if item["rating"] is not None else None,
             "price": float(item["price"]),
             "photos": item["photos"] or [],
             "city": city_val,
+            "occupancy": item.get("occupancy", 0),
+            "capacity": item.get("capacity", 0),
         })
 
     return properties
