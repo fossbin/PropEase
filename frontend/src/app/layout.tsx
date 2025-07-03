@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import Navbar from "@/components/Navbar";   
-import GoogleMapsScript from '@/components/GoogleMapsScript'; 
+import PublicNavbar from '@/components/PublicNavbar';
+import RoleNavbar from '@/components/RoleNavbar';
+import GoogleMapsScript from '@/components/GoogleMapsScript';
+import './globals.css';
+import { Geist, Geist_Mono } from 'next/font/google';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,29 +14,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "PropEase - Your Digital Solution",
   description: "A modern property app",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}
       >
         <GoogleMapsScript />
-        <Navbar />
-        <main >{children}</main>
+        <PublicNavbar />
+        <RoleNavbar />
+        <main className="pt-20">{children}</main>
       </body>
     </html>
   );
 }
-
-  
-
-

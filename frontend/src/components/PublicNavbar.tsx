@@ -1,14 +1,13 @@
-'use client'; 
+'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home } from 'lucide-react';
 
-const publicPaths = ['/', '/login', '/register'];
+const publicPaths = ['/', '/auth/login', '/auth/register'];
 
-export default function Navbar() {
+export default function PublicNavbar() {
   const pathname = usePathname();
-
   const showNavbar = publicPaths.includes(pathname);
 
   if (!showNavbar) return null;
