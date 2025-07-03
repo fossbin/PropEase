@@ -24,7 +24,7 @@ class LeaseBase(BaseModel):
     start_date: date
     end_date: date
     agreement_file: str | None = None
-    monthly_rent: float
+    rent: float
     is_signed: bool = False
 
 class LeaseCreate(LeaseBase):

@@ -7,7 +7,6 @@ from app.db.supabase import get_supabase_client as get_supabase
 
 router = APIRouter(prefix="/api/applications", tags=["Applications"])
 
-
 @router.post("/apply/{property_id}", status_code=201)
 def submit_application(
     property_id: UUID,
@@ -112,8 +111,6 @@ def get_application_detail(application_id: UUID, supabase=Depends(get_supabase))
 
     return app_data
 
-
-
 @router.patch("/{application_id}")
 def update_application(application_id: UUID, payload: dict, supabase=Depends(get_supabase), user=Depends(get_current_user)):
     update_res = (
@@ -130,13 +127,14 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
 
     if payload.get("status") == "Approved":
         app = updated_app
-        property_res = supabase.table("properties").select("*", count="exact").eq("id", app["property_id"]).single().execute()
+        property_res = supabase.table("properties").select("*").eq("id", app["property_id"]).single().execute()
         property_data = property_res.data
         if not property_data:
             raise HTTPException(status_code=404, detail="Property not found")
 
         prop_type = property_data["type"]
         owner_id = property_data["owner_id"]
+        price = app.get("bid_amount") or property_data.get("price")
 
         if prop_type == "Lease" and app.get("lease_start") and app.get("lease_end"):
             lease_payload = {
@@ -146,19 +144,31 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                 "owner_id": owner_id,
                 "start_date": app["lease_start"],
                 "end_date": app["lease_end"],
-                "monthly_rent": app.get("bid_amount") or property_data.get("price"),
+                "rent": price,
                 "agreement_file": None,
-                "is_signed": False
+                "is_signed": False,
+                "payment_status": "Pending",
+                "payment_due_date": app["lease_start"],
+                "last_paid_month": None,
+                "late_fee": 0
             }
             supabase.table("leases").insert(lease_payload).execute()
 
         elif prop_type == "Sale":
+            account_res = supabase.table("accounts").select("balance").eq("user_id", app["applicant_id"]).single().execute()
+            if not account_res.data:
+                raise HTTPException(status_code=400, detail="Applicant has no associated account")
+
+            balance = float(account_res.data["balance"])
+            if balance < float(price):
+                raise HTTPException(status_code=400, detail="Insufficient balance to complete the sale")
+
             sale_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],
                 "buyer_id": app["applicant_id"],
                 "seller_id": owner_id,
-                "sale_price": app.get("bid_amount") or property_data.get("price"),
+                "sale_price": price,
                 "deed_file": None
             }
             supabase.table("sales").insert(sale_payload).execute()
@@ -170,8 +180,12 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                 "user_id": app["applicant_id"],
                 "start_date": app["subscription_start"],
                 "end_date": app["subscription_end"],
-                "price": property_data.get("price"),
-                "is_active": True
+                "rent": price,
+                "is_active": True,
+                "payment_status": "Pending",
+                "payment_due_date": app["subscription_start"],
+                "last_paid_period": None,
+                "late_fee": 0
             }
             supabase.table("subscriptions").insert(sub_payload).execute()
 

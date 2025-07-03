@@ -7,7 +7,6 @@ from app.models.property import PropertyWithLocation
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
-
 @router.post("/")
 def create_property(
     request: Request,
@@ -23,7 +22,7 @@ def create_property(
         "title": payload.property.title,
         "description": payload.property.description,
         "type": payload.property.type,
-        "status": payload.property.status,  # Must be one of: 'Available', 'Booked', 'Sold'
+        "status": payload.property.status,  
         "price": payload.property.price,
         "transaction_type": payload.property.transaction_type,
         "is_negotiable": payload.property.is_negotiable,
