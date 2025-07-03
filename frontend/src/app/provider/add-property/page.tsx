@@ -11,9 +11,7 @@ import imageCompression from 'browser-image-compression';
 import Script from 'next/script'
 
 
-
 const propertyTypes = ['Apartment', 'PG', 'Land', 'Villa'];
-const pricingTypes = ['Fixed', 'Dynamic'];
 const userID = typeof window !== 'undefined' ? sessionStorage.getItem('userId') || '' : '';
 
 export default function AddPropertyPage() {
@@ -24,11 +22,12 @@ export default function AddPropertyPage() {
     title: '',
     description: '',
     type: '',
-    pricing_type: '',
+    transaction_type: '',
+    is_negotiable: false,
     price: '',
     capacity: '',
     photos: [] as string[],
-    documents: [] as {name: string; path: string}[],
+    documents: [] as { name: string; path: string }[],
     location: {
       address_line: '',
       city: '',
@@ -39,6 +38,7 @@ export default function AddPropertyPage() {
       longitude: '',
     },
   });
+
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -87,6 +87,12 @@ export default function AddPropertyPage() {
     }
   };
 
+  const handleBooleanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: checked }));
+  };
+
+
   const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !userID) return;
@@ -123,17 +129,19 @@ export default function AddPropertyPage() {
         type: formData.type,
         status: 'Available',
         price: parseFloat(formData.price),
-        pricing_type: formData.pricing_type,
         capacity: parseInt(formData.capacity),
+        transaction_type: formData.transaction_type,
+        is_negotiable: formData.is_negotiable,
         photos: formData.photos,
-        documents: [] as { name: string; path: string }[],
+        documents: formData.documents,
       },
       location: {
         ...formData.location,
         latitude: parseFloat(formData.location.latitude),
         longitude: parseFloat(formData.location.longitude),
-      }
-    };
+      },
+};
+
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/properties`, {
@@ -181,13 +189,29 @@ export default function AddPropertyPage() {
         </div>
 
         <div>
-          <Label htmlFor="pricing_type">Pricing Type</Label>
-          <select name="pricing_type" value={formData.pricing_type} onChange={handleChange} required className="w-full p-2 border rounded">
-            <option value="">Select Pricing Type</option>
-            {pricingTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
+          <Label htmlFor="transaction_type">Transaction Type</Label>
+          <select
+            name="transaction_type"
+            value={formData.transaction_type}
+            onChange={handleChange}
+            required
+            className="w-full p-2 border rounded"
+          >
+            <option value="">Select Transaction Type</option>
+            <option value="Sale">Sale</option>
+            <option value="Lease">Lease</option>
+            <option value="PG">PG</option>
           </select>
+        </div>
+
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="checkbox"
+            name="is_negotiable"
+            checked={formData.is_negotiable}
+            onChange={handleBooleanChange}
+          />
+          <Label htmlFor="is_negotiable">Is Price Negotiable?</Label>
         </div>
 
         <div>

@@ -1,27 +1,26 @@
 from pydantic import BaseModel
-from typing import Optional
-
-class PropertyLocation(BaseModel):
-    address_line: str
-    city: str
-    state: str
-    country: str
-    zipcode: str
-    latitude: float
-    longitude: float
+from typing import Optional, List, Dict
 
 class PropertyBase(BaseModel):
     title: str
-    description: str
+    description: Optional[str]
     type: str
-    status: Optional[str] = "Available"
+    status: str 
     price: float
-    pricing_type: str
-    capacity: int
-    photos: Optional[list[str]] = []  
-    documents: Optional[list[dict]] = []
-    approval_status: Optional[str] = "Pending"  
-    rejection_reason: Optional[str] = None   
+    transaction_type: str  
+    is_negotiable: bool
+    capacity: Optional[int]
+    photos: Optional[List[str]] = []
+    documents: Optional[List[Dict[str, str]]] = []
+
+class PropertyLocation(BaseModel):
+    address_line: str
+    city: Optional[str]
+    state: Optional[str]
+    country: Optional[str]
+    zipcode: Optional[str]
+    latitude: float
+    longitude: float
 
 class PropertyWithLocation(BaseModel):
     property: PropertyBase

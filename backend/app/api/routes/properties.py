@@ -2,11 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from supabase import Client
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
 from app.db.supabase import get_supabase_client as get_supabase
-from app.models.property import PropertyBase, PropertyLocation, PropertyWithLocation
+from app.models.property import PropertyWithLocation
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
+
 
 @router.post("/")
 def create_property(
@@ -23,12 +23,13 @@ def create_property(
         "title": payload.property.title,
         "description": payload.property.description,
         "type": payload.property.type,
-        "status": payload.property.status,
+        "status": payload.property.status,  # Must be one of: 'Available', 'Booked', 'Sold'
         "price": payload.property.price,
-        "pricing_type": payload.property.pricing_type,
+        "transaction_type": payload.property.transaction_type,
+        "is_negotiable": payload.property.is_negotiable,
         "capacity": payload.property.capacity,
         "photos": payload.property.photos or [],
-        "documents": getattr(payload.property, "documents", []), 
+        "documents": getattr(payload.property, "documents", []),
     }
 
     prop_res = supabase.table("properties").insert(property_data).execute()
@@ -62,7 +63,7 @@ def get_owned_properties(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     result = supabase.table("properties") \
-        .select("id, title, type, status, price, pricing_type, capacity, approval_status, created_at") \
+        .select("id, title, type, status, price, transaction_type, is_negotiable, capacity, approval_status, created_at") \
         .eq("owner_id", user_id) \
         .execute()
 
