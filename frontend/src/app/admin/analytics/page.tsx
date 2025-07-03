@@ -1,4 +1,3 @@
-// app/(admin)/analytics/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
