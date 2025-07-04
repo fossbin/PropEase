@@ -9,13 +9,13 @@ const DynamicNavbar = () => {
 
   const isAuthPage = pathname.startsWith('/auth');
   const isSwitchRole = pathname.startsWith('/switch-role');
+  const isAdminPage = pathname.startsWith('/admin');
 
-  const isPublic =
-    pathname === '/' || pathname === '/auth/login' || pathname === '/auth/register';
+  const isPublicPage = ['/', '/auth/login', '/auth/register'].includes(pathname);
 
-  if (isAuthPage || isSwitchRole) return null;
+  if (isAuthPage || isSwitchRole || isAdminPage) return null;
 
-  if (isPublic) return <PublicNavbar />;
+  if (isPublicPage) return <PublicNavbar />;
 
   return <RoleNavbar />;
 };

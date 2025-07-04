@@ -10,6 +10,7 @@ import {
   Inbox,
   Wrench,
   BarChart3,
+  BookUser,
   Search,
   Star,
   User,
@@ -51,6 +52,7 @@ export default function Navbar() {
     { label: "Add Property", href: "/provider/add-property", icon: Plus },
     { label: "My Properties", href: "/provider/my-properties", icon: FileText },
     { label: "Applications", href: "/provider/applications", icon: Inbox },
+    { label: "Bookings", href: "/provider/bookings", icon: BookUser },
     { label: "Maintenance", href: "/provider/maintenance", icon: Wrench },
     { label: "Analytics", href: "/provider/analytics", icon: BarChart3 },
   ]
