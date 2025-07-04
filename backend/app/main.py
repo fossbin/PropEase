@@ -19,6 +19,7 @@ from app.api.routes import (
     explore,
     property_detail,
     property_apply,
+    bookings,
 )
 
 app = FastAPI()
@@ -64,6 +65,7 @@ app.include_router(admin_users.router, prefix="/api/admin")
 app.include_router(explore.router, prefix="/api")
 app.include_router(property_detail.router, prefix="/api")
 app.include_router(property_apply.router, prefix="/api")
+app.include_router(bookings.router, prefix="/api")
 
 @app.get("/")
 def read_root():
