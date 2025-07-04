@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 interface ReviewableProperty {
   property_id: string;
   title: string;
+  transaction_type: 'lease' | 'subscription';
   rating?: number;
   comment?: string;
 }
@@ -21,22 +22,24 @@ export default function SeekerReviewsPage() {
   useEffect(() => {
     const fetchReviewables = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/seeker/reviewables`,{
+        const res = await fetch(`${API_BASE_URL}/api/seeker/reviewables`, {
           headers: {
             'X-User-Id': sessionStorage.getItem('userId') || '',
             'Content-Type': 'application/json',
-          }
+          },
         });
         const data = await res.json();
         if (Array.isArray(data)) {
-          setProperties(data);
+          // Only include leases and PG-style subscriptions
+          const filtered = data.filter((p) => ['lease', 'subscription'].includes(p.transaction_type));
+          setProperties(filtered);
         } else {
           console.error('Expected an array, got:', data);
-          setProperties([]); // fallback to empty
+          setProperties([]);
         }
       } catch (err) {
         console.error('Failed to fetch reviewable properties:', err);
-        setProperties([]); // avoid undefined state
+        setProperties([]);
       }
     };
     fetchReviewables();
@@ -47,9 +50,10 @@ export default function SeekerReviewsPage() {
     try {
       await fetch(`${API_BASE_URL}/api/seeker/review/${property_id}`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': sessionStorage.getItem('userId') || ''},
+          'X-User-Id': sessionStorage.getItem('userId') || '',
+        },
         body: JSON.stringify({ rating, comment }),
       });
       alert('Review submitted!');

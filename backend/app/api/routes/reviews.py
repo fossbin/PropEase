@@ -8,7 +8,6 @@ from supabase import Client
 
 router = APIRouter(prefix="/seeker", tags=["Seeker Reviews"])
 
-
 @router.post("/review/{property_id}", response_model=ReviewResponse)
 def create_review(
     property_id: str,
@@ -20,7 +19,6 @@ def create_review(
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # 1. Check if property is eligible for review (via lease or subscription)
     lease_check = supabase.table("leases") \
         .select("id") \
         .eq("property_id", property_id) \
@@ -36,7 +34,6 @@ def create_review(
     if not lease_check.data and not sub_check.data:
         raise HTTPException(status_code=403, detail="You can only review properties you have rented or subscribed to.")
 
-    # 2. Prevent duplicate reviews
     existing_review = supabase.table("reviews") \
         .select("id") \
         .eq("property_id", property_id) \
@@ -47,7 +44,6 @@ def create_review(
     if existing_review.data:
         raise HTTPException(status_code=400, detail="You have already reviewed this property.")
 
-    # 3. Create review
     review_obj = {
         "id": str(uuid4()),
         "reviewer_id": user_id,
@@ -67,14 +63,12 @@ def get_reviewable_properties(
 ):
     user_id = user["id"]
 
-    # 1. Get properties from leases (join to get title)
     leases = supabase.table("leases") \
         .select("property_id, properties(title)") \
         .eq("tenant_id", user_id) \
         .execute()
     lease_props = leases.data or []
 
-    # 2. Get properties from subscriptions (join to get title)
     subs = supabase.table("subscriptions") \
         .select("property_id, properties(title)") \
         .eq("user_id", user_id) \

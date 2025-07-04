@@ -6,13 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 
 interface Property {
   id: string;
@@ -39,7 +32,6 @@ export default function ApplyPropertyPage() {
   const [bidAmount, setBidAmount] = useState('');
   const [leaseStart, setLeaseStart] = useState('');
   const [leaseEnd, setLeaseEnd] = useState('');
-  const [subscriptionType, setSubscriptionType] = useState('');
   const [subscriptionStart, setSubscriptionStart] = useState('');
   const [subscriptionEnd, setSubscriptionEnd] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -76,15 +68,17 @@ export default function ApplyPropertyPage() {
 
   const handleSubmit = async () => {
     if (!message) return alert('Message is required');
+
     const type = property?.type;
+    if (!type) return alert('Property type missing');
 
     if (type === 'Apartment') {
-      if (!leaseStart || !leaseEnd) return alert('Lease start and end dates are required');
+      if (!leaseStart || !leaseEnd) return alert('Lease dates are required');
     }
 
     if (type === 'PG') {
-      if (!subscriptionType || !subscriptionStart || !subscriptionEnd) {
-        return alert('All subscription details are required');
+      if (!subscriptionStart || !subscriptionEnd) {
+        return alert('Subscription dates are required');
       }
     }
 
@@ -182,31 +176,19 @@ export default function ApplyPropertyPage() {
         )}
 
         {isPG && (
-          <div className="space-y-2">
-            <Select onValueChange={(val) => setSubscriptionType(val)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Subscription Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Monthly">Monthly</SelectItem>
-                <SelectItem value="Quarterly">Quarterly</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                type="date"
-                value={subscriptionStart}
-                onChange={(e) => setSubscriptionStart(e.target.value)}
-                placeholder="Subscription Start Date"
-              />
-              <Input
-                type="date"
-                value={subscriptionEnd}
-                onChange={(e) => setSubscriptionEnd(e.target.value)}
-                placeholder="Subscription End Date"
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              type="date"
+              value={subscriptionStart}
+              onChange={(e) => setSubscriptionStart(e.target.value)}
+              placeholder="Subscription Start Date"
+            />
+            <Input
+              type="date"
+              value={subscriptionEnd}
+              onChange={(e) => setSubscriptionEnd(e.target.value)}
+              placeholder="Subscription End Date"
+            />
           </div>
         )}
 

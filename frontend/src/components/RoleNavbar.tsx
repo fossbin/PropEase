@@ -61,7 +61,7 @@ export default function Navbar() {
     { label: "Dashboard", href: "/seeker", icon: Home },
     { label: "Explore", href: "/seeker/explore", icon: Search },
     { label: "Applications", href: "/seeker/applications", icon: FileText },
-    { label: "My Rentals", href: "/seeker/active", icon: Inbox },
+    { label: "My Purchases", href: "/seeker/active", icon: Inbox },
     { label: "Maintenance", href: "/seeker/maintenance", icon: Wrench },
     { label: "Reviews", href: "/seeker/reviews", icon: Star },
   ]

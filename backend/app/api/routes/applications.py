@@ -22,20 +22,10 @@ def submit_application(
 ):
     applicant_id = user["id"]
 
-    document_data = None
-    if documents:
-        contents = documents.file.read()
-        document_data = {
-            "filename": documents.filename,
-            "content_type": documents.content_type,
-            "data": contents.decode("latin1")
-        }
-
     payload = {
         "property_id": str(property_id),
         "applicant_id": applicant_id,
         "message": message,
-        "documents": document_data,
         "bid_amount": bid_amount,
         "lease_start": lease_start,
         "lease_end": lease_end,
@@ -60,7 +50,6 @@ def fetch_user_applications(user=Depends(get_current_user), supabase=Depends(get
 @router.get("/received")
 def fetch_received_applications(user=Depends(get_current_user), supabase=Depends(get_supabase)):
     provider_id = user["id"]
-
     prop_res = supabase.table("properties").select("id, title, type").eq("owner_id", str(provider_id)).execute()
     properties = prop_res.data or []
 
@@ -90,7 +79,6 @@ def fetch_received_applications(user=Depends(get_current_user), supabase=Depends
 
 @router.get("/{application_id}")
 def get_application_detail(application_id: UUID, supabase=Depends(get_supabase)):
-
     app_res = supabase.table("applications").select("*").eq("id", str(application_id)).single().execute()
     if not app_res or not app_res.data:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -104,12 +92,15 @@ def get_application_detail(application_id: UUID, supabase=Depends(get_supabase))
     docs_res = supabase.table("user_documents").select("id, document_url, document_type, verified").eq("user_id", applicant_id).execute()
     user_documents = docs_res.data if docs_res and docs_res.data else []
 
-    app_data["applicant_name"] = user_data.get("name", "Unknown")
-    app_data["applicant_email"] = user_data.get("email", "")
-    app_data["applicant_phone"] = user_data.get("phone_number", "")
-    app_data["user_documents"] = user_documents
+    app_data.update({
+        "applicant_name": user_data.get("name", "Unknown"),
+        "applicant_email": user_data.get("email", ""),
+        "applicant_phone": user_data.get("phone_number", ""),
+        "user_documents": user_documents
+    })
 
     return app_data
+
 
 @router.patch("/{application_id}")
 def update_application(application_id: UUID, payload: dict, supabase=Depends(get_supabase), user=Depends(get_current_user)):
@@ -146,7 +137,6 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                 "end_date": app["lease_end"],
                 "rent": price,
                 "agreement_file": None,
-                "is_signed": False,
                 "payment_status": "Pending",
                 "payment_due_date": app["lease_start"],
                 "last_paid_month": None,
@@ -173,7 +163,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             }
             supabase.table("sales").insert(sale_payload).execute()
 
-        elif prop_type == "PG":
+        elif prop_type == "PG" and app.get("subscription_start") and app.get("subscription_end"):
             sub_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],
@@ -181,11 +171,11 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                 "start_date": app["subscription_start"],
                 "end_date": app["subscription_end"],
                 "rent": price,
-                "is_active": True,
                 "payment_status": "Pending",
                 "payment_due_date": app["subscription_start"],
                 "last_paid_period": None,
-                "late_fee": 0
+                "late_fee": 0,
+                "is_active": True
             }
             supabase.table("subscriptions").insert(sub_payload).execute()
 
