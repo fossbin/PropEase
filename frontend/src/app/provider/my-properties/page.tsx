@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, Eye } from 'lucide-react';
+import { Pencil, Eye, CheckCircle, Star } from 'lucide-react';
 
 interface Property {
   id: string;
@@ -13,9 +13,12 @@ interface Property {
   status: string;
   approval_status: string;
   price: string;
-  pricing_type: string;
   capacity: number;
   created_at: string;
+  transaction_type: string;
+  is_negotiable: boolean;
+  verified: boolean;
+  rating: number | null;
 }
 
 export default function MyPropertiesPage() {
@@ -84,9 +87,22 @@ export default function MyPropertiesPage() {
                   {renderBadge(property.approval_status)}
                 </div>
                 <p className="text-sm text-gray-600">Type: {property.type}</p>
-                <p className="text-sm text-gray-600">Pricing: {property.pricing_type} – ₹{property.price}</p>
+                <p className="text-sm text-gray-600">Transaction: {property.transaction_type}</p>
+                <p className="text-sm text-gray-600">Price: ₹{property.price}{property.is_negotiable ? ' (Negotiable)' : ''}</p>
                 <p className="text-sm text-gray-600">Capacity: {property.capacity}</p>
                 <p className="text-sm text-gray-600">Status: {property.status}</p>
+                {property.rating !== null && (
+                  <p className="text-sm text-gray-600 flex items-center gap-1">
+                    <Star className="w-4 h-4 text-yellow-500" />
+                    {property.rating.toFixed(1)}
+                  </p>
+                )}
+                {property.verified && (
+                  <p className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" />
+                    Verified
+                  </p>
+                )}
                 <div className="flex gap-2 mt-2">
                   <Link href={`/provider/my-properties/${property.id}/view`}>
                     <Button variant="outline" size="sm">

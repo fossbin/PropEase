@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
 const propertyTypes = ['Apartment', 'PG', 'Land', 'Villa'];
-const pricingTypes = ['Fixed', 'Dynamic'];
+const transactionTypes = ['Sale', 'Lease', 'Subscription'];
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export default function EditPropertyPage() {
@@ -20,9 +21,10 @@ export default function EditPropertyPage() {
     title: '',
     description: '',
     type: '',
-    pricing_type: '',
+    transaction_type: '',
     price: '',
     capacity: '',
+    is_negotiable: false,
   });
 
   const [loading, setLoading] = useState(true);
@@ -46,9 +48,10 @@ export default function EditPropertyPage() {
           title: data.title || '',
           description: data.description || '',
           type: data.type || '',
-          pricing_type: data.pricing_type || '',
+          transaction_type: data.transaction_type || '',
           price: data.price?.toString() || '',
           capacity: data.capacity?.toString() || '',
+          is_negotiable: data.is_negotiable || false,
         });
       } catch (error) {
         console.error('Error fetching property:', error);
@@ -60,9 +63,13 @@ export default function EditPropertyPage() {
     if (id) fetchProperty();
   }, [id, userId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    const newValue = type === 'checkbox' ? checked : value;
+    setFormData((prev) => ({ ...prev, [name]: newValue }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,9 +79,10 @@ export default function EditPropertyPage() {
       title: formData.title,
       description: formData.description,
       type: formData.type,
-      pricing_type: formData.pricing_type,
+      transaction_type: formData.transaction_type,
       price: parseFloat(formData.price),
       capacity: parseInt(formData.capacity),
+      is_negotiable: formData.is_negotiable,
     };
 
     try {
@@ -116,20 +124,36 @@ export default function EditPropertyPage() {
 
         <div>
           <Label htmlFor="type">Property Type</Label>
-          <select name="type" value={formData.type} onChange={handleChange} required className="w-full p-2 border rounded">
+          <select
+            name="type"
+            value={formData.type}
+            onChange={handleChange}
+            required
+            className="w-full p-2 border rounded"
+          >
             <option value="">Select Type</option>
             {propertyTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <Label htmlFor="pricing_type">Pricing Type</Label>
-          <select name="pricing_type" value={formData.pricing_type} onChange={handleChange} required className="w-full p-2 border rounded">
-            <option value="">Select Pricing Type</option>
-            {pricingTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
+          <Label htmlFor="transaction_type">Transaction Type</Label>
+          <select
+            name="transaction_type"
+            value={formData.transaction_type}
+            onChange={handleChange}
+            required
+            className="w-full p-2 border rounded"
+          >
+            <option value="">Select Transaction</option>
+            {transactionTypes.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
         </div>
@@ -142,6 +166,17 @@ export default function EditPropertyPage() {
         <div>
           <Label htmlFor="capacity">Capacity</Label>
           <Input type="number" name="capacity" value={formData.capacity} onChange={handleChange} />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="is_negotiable"
+            checked={formData.is_negotiable}
+            onChange={handleChange}
+            className="w-4 h-4"
+          />
+          <Label htmlFor="is_negotiable">Is Price Negotiable?</Label>
         </div>
 
         <Button type="submit">Update Property</Button>
