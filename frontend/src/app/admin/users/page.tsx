@@ -161,7 +161,6 @@ export default function AdminUsersPage() {
         return
       }
 
-      // Update local state
       setUserDocuments((prev) => ({
         ...prev,
         [userId]: prev[userId]?.map((doc) => (doc.id === documentId ? { ...doc, verified: false } : doc)) || [],
