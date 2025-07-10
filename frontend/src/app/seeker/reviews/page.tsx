@@ -1,111 +1,399 @@
-'use client';
+"use client"
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
+import {
+  Star,
+  Building,
+  MessageSquare,
+  CheckCircle,
+  AlertTriangle,
+  Loader2,
+  Send,
+  Home,
+  Calendar,
+  ThumbsUp,
+} from "lucide-react"
 
 interface ReviewableProperty {
-  property_id: string;
-  title: string;
-  transaction_type: 'lease' | 'subscription';
-  rating?: number;
-  comment?: string;
+  property_id: string
+  title: string
+  transaction_type: "lease" | "subscription"
+  rating?: number
+  comment?: string
+  property_type?: string
+  start_date?: string
+  end_date?: string
+  location?: string
 }
 
 export default function SeekerReviewsPage() {
-  const [properties, setProperties] = useState<ReviewableProperty[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const [properties, setProperties] = useState<ReviewableProperty[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState<string | null>(null)
+  const [submitStatus, setSubmitStatus] = useState<{ [key: string]: "success" | "error" | null }>({})
+  const [reviews, setReviews] = useState<{ [key: string]: { rating: number; comment: string } }>({})
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
   useEffect(() => {
     const fetchReviewables = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/seeker/reviewables`, {
           headers: {
-            'X-User-Id': sessionStorage.getItem('userId') || '',
-            'Content-Type': 'application/json',
+            "X-User-Id": sessionStorage.getItem("userId") || "",
+            "Content-Type": "application/json",
           },
-        });
-        const data = await res.json();
+        })
+        const data = await res.json()
         if (Array.isArray(data)) {
-          // Only include leases and PG-style subscriptions
-          const filtered = data.filter((p) => ['lease', 'subscription'].includes(p.transaction_type));
-          setProperties(filtered);
+          const filtered = data.filter((p) => ["lease", "subscription"].includes(p.transaction_type))
+          setProperties(filtered)
+
+          // Initialize review state
+          const initialReviews: { [key: string]: { rating: number; comment: string } } = {}
+          filtered.forEach((p) => {
+            initialReviews[p.property_id] = {
+              rating: p.rating || 0,
+              comment: p.comment || "",
+            }
+          })
+          setReviews(initialReviews)
         } else {
-          console.error('Expected an array, got:', data);
-          setProperties([]);
+          console.error("Expected an array, got:", data)
+          setProperties([])
         }
       } catch (err) {
-        console.error('Failed to fetch reviewable properties:', err);
-        setProperties([]);
+        console.error("Failed to fetch reviewable properties:", err)
+        setProperties([])
+      } finally {
+        setLoading(false)
       }
-    };
-    fetchReviewables();
-  }, []);
+    }
 
-  const handleSubmit = async (property_id: string, rating: number, comment: string) => {
-    setSubmitting(true);
+    fetchReviewables()
+  }, [])
+
+  const handleSubmit = async (property_id: string) => {
+    const review = reviews[property_id]
+    if (!review || review.rating < 1 || review.rating > 5) return
+
+    setSubmitting(property_id)
+    setSubmitStatus({ ...submitStatus, [property_id]: null })
+
     try {
       await fetch(`${API_BASE_URL}/api/seeker/review/${property_id}`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': sessionStorage.getItem('userId') || '',
+          "Content-Type": "application/json",
+          "X-User-Id": sessionStorage.getItem("userId") || "",
         },
-        body: JSON.stringify({ rating, comment }),
-      });
-      alert('Review submitted!');
+        body: JSON.stringify({ rating: review.rating, comment: review.comment }),
+      })
+      setSubmitStatus({ ...submitStatus, [property_id]: "success" })
     } catch (err) {
-      console.error('Failed to submit review:', err);
-      alert('Review submission failed.');
+      console.error("Failed to submit review:", err)
+      setSubmitStatus({ ...submitStatus, [property_id]: "error" })
     } finally {
-      setSubmitting(false);
+      setSubmitting(null)
     }
-  };
+  }
+
+  const updateReview = (property_id: string, field: "rating" | "comment", value: number | string) => {
+    setReviews({
+      ...reviews,
+      [property_id]: {
+        ...reviews[property_id],
+        [field]: value,
+      },
+    })
+  }
+
+  const renderStarRating = (property_id: string, currentRating: number) => {
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => updateReview(property_id, "rating", star)}
+            className="transition-colors duration-200"
+          >
+            <Star
+              className={`h-6 w-6 ${
+                star <= currentRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-300"
+              }`}
+            />
+          </button>
+        ))}
+        <span className="ml-2 text-sm text-muted-foreground">
+          {currentRating > 0 ? `${currentRating} star${currentRating !== 1 ? "s" : ""}` : "Click to rate"}
+        </span>
+      </div>
+    )
+  }
+
+  const getTransactionTypeIcon = (type: string) => {
+    switch (type) {
+      case "lease":
+        return <Home className="h-4 w-4" />
+      case "subscription":
+        return <Building className="h-4 w-4" />
+      default:
+        return <Building className="h-4 w-4" />
+    }
+  }
+
+  const getTransactionTypeLabel = (type: string) => {
+    switch (type) {
+      case "lease":
+        return "Lease"
+      case "subscription":
+        return "PG Subscription"
+      default:
+        return type
+    }
+  }
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "N/A"
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin mr-2" />
+          <span className="text-lg">Loading your properties...</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Rate Your Properties</h1>
+    <div className="max-w-6xl mx-auto p-6 space-y-8">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Star className="h-8 w-8" />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Rate Your Properties</h1>
+          <p className="text-muted-foreground">Share your experience and help other renters make informed decisions</p>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Properties to Review</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{properties.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Reviews Submitted</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {Object.values(submitStatus).filter((status) => status === "success").length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+            <Star className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">
+              {properties.length > 0
+                ? (
+                    Object.values(reviews).reduce((sum, review) => sum + (review.rating || 0), 0) /
+                      Object.values(reviews).filter((review) => review.rating > 0).length || 0
+                  ).toFixed(1)
+                : "0.0"}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Review Guidelines */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ThumbsUp className="h-5 w-5" />
+            Review Guidelines
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+            <div>
+              <h4 className="font-medium text-foreground mb-2">What to include:</h4>
+              <ul className="space-y-1">
+                <li>• Property condition and maintenance</li>
+                <li>• Landlord responsiveness</li>
+                <li>• Neighborhood and location</li>
+                <li>• Value for money</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium text-foreground mb-2">Keep it helpful:</h4>
+              <ul className="space-y-1">
+                <li>• Be honest and constructive</li>
+                <li>• Focus on facts and experiences</li>
+                <li>• Avoid personal information</li>
+                <li>• Help future renters decide</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Properties List */}
       {properties.length === 0 ? (
-        <p>No properties available for review.</p>
+        <Card>
+          <CardContent className="text-center py-12">
+            <Star className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No properties to review</h3>
+            <p className="text-muted-foreground">
+              Properties you've rented or subscribed to will appear here for you to review.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {properties.map((p) => {
-            const [rating, setRating] = useState<number>(0);
-            const [comment, setComment] = useState('');
+        <div className="grid gap-6 md:grid-cols-2">
+          {properties.map((property) => {
+            const review = reviews[property.property_id] || { rating: 0, comment: "" }
+            const status = submitStatus[property.property_id]
+            const isSubmitting = submitting === property.property_id
 
             return (
-              <Card key={p.property_id}>
-                <CardContent className="p-4 space-y-2">
-                  <h2 className="font-semibold text-lg">{p.title}</h2>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={5}
-                    placeholder="Rating (1-5)"
-                    value={rating}
-                    onChange={(e) => setRating(parseInt(e.target.value))}
-                  />
-                  <Textarea
-                    placeholder="Write a review..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                  />
+              <Card key={property.property_id} className="border-l-4 border-l-blue-500">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <CardTitle className="text-xl">{property.title}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {getTransactionTypeIcon(property.transaction_type)}
+                          <span className="ml-1">{getTransactionTypeLabel(property.transaction_type)}</span>
+                        </Badge>
+                        {property.property_type && (
+                          <Badge variant="secondary" className="text-xs">
+                            {property.property_type}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {property.location && (
+                    <CardDescription className="flex items-center gap-1">
+                      <Building className="h-3 w-3" />
+                      {property.location}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {/* Rental Period */}
+                  {(property.start_date || property.end_date) && (
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          {formatDate(property.start_date)} - {formatDate(property.end_date)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Status Alert */}
+                  {status === "success" && (
+                    <Alert className="border-green-200 bg-green-50">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        Thank you! Your review has been submitted successfully.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {status === "error" && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>Failed to submit review. Please try again.</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Rating */}
+                  <div className="space-y-2">
+                    <Label>Rating</Label>
+                    {renderStarRating(property.property_id, review.rating)}
+                  </div>
+
+                  {/* Comment */}
+                  <div className="space-y-2">
+                    <Label htmlFor={`comment-${property.property_id}`}>Your Review</Label>
+                    <Textarea
+                      id={`comment-${property.property_id}`}
+                      placeholder="Share your experience with this property... What did you like? What could be improved?"
+                      value={review.comment}
+                      onChange={(e) => updateReview(property.property_id, "comment", e.target.value)}
+                      rows={4}
+                      maxLength={500}
+                    />
+                    <div className="text-xs text-muted-foreground text-right">
+                      {review.comment.length}/500 characters
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Submit Button */}
                   <Button
-                    size="sm"
-                    onClick={() => handleSubmit(p.property_id, rating, comment)}
-                    disabled={submitting || rating < 1 || rating > 5}
+                    onClick={() => handleSubmit(property.property_id)}
+                    disabled={isSubmitting || review.rating < 1 || review.rating > 5 || status === "success"}
+                    className="w-full"
                   >
-                    Submit Review
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting Review...
+                      </>
+                    ) : status === "success" ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Review Submitted
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit Review
+                      </>
+                    )}
                   </Button>
                 </CardContent>
               </Card>
-            );
+            )
           })}
         </div>
       )}
     </div>
-  );
+  )
 }
