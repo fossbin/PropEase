@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
+import { supabase } from "@/lib/supabaseClient"
 import {
   Building,
   MapPin,
@@ -28,10 +29,17 @@ import {
   AlertTriangle,
   Eye,
   Navigation,
+  Star,
+  Shield,
+  User,
+  Phone,
+  Mail,
+  ShieldCheck,
 } from "lucide-react"
 
 interface PropertyDetail {
   id: string
+  owner_id: string
   title: string
   description: string
   type: string
@@ -44,6 +52,8 @@ interface PropertyDetail {
   created_at: string
   approval_status: string
   rejection_reason: string | null
+  verified: boolean
+  rating: number | null
   photos: string[]
   documents: { name: string; path: string }[]
   location: {
@@ -55,18 +65,35 @@ interface PropertyDetail {
     latitude: number
     longitude: number
   }
+  owner: {
+    id: string
+    name: string
+    email: string
+    phone_number: string | null
+    picture: any // JSONB field can contain various picture data
+    created_at: string
+  }
+}
+
+interface UserDocument {
+  id: string
+  document_type: string
+  document_url: string
+  verified: boolean
+  uploaded_at: string
 }
 
 export default function PropertyDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const [property, setProperty] = useState<PropertyDetail | null>(null)
+  const [ownerDocuments, setOwnerDocuments] = useState<UserDocument[]>([])
   const [rejectionReason, setRejectionReason] = useState("")
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState<"approve" | "reject" | null>(null)
+  const [loadingOwnerDocs, setLoadingOwnerDocs] = useState(false)
+  const [submitting, setSubmitting] = useState<"approve" | "reject" | "verify" | "unverify" | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
   useEffect(() => {
@@ -80,6 +107,11 @@ export default function PropertyDetailPage() {
         })
         const data = await res.json()
         setProperty(data)
+
+        // Fetch owner documents if property is loaded
+        if (data?.owner_id) {
+          await fetchOwnerDocuments(data.owner_id)
+        }
       } catch (error) {
         console.error("Failed to fetch property details:", error)
       } finally {
@@ -89,6 +121,28 @@ export default function PropertyDetailPage() {
 
     fetchDetails()
   }, [id])
+
+  const fetchOwnerDocuments = async (ownerId: string) => {
+    setLoadingOwnerDocs(true)
+    try {
+      const { data, error } = await supabase
+        .from("user_documents")
+        .select("*")
+        .eq("user_id", ownerId)
+        .order("uploaded_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching owner documents:", error)
+        return
+      }
+
+      setOwnerDocuments(data || [])
+    } catch (err) {
+      console.error("Error:", err)
+    } finally {
+      setLoadingOwnerDocs(false)
+    }
+  }
 
   const handleApproval = async () => {
     setSubmitting("approve")
@@ -113,7 +167,6 @@ export default function PropertyDetailPage() {
       alert("Please provide a reason for rejection")
       return
     }
-
     setSubmitting("reject")
     try {
       await fetch(`${API_BASE_URL}/api/admin/properties/${id}/reject`, {
@@ -127,6 +180,33 @@ export default function PropertyDetailPage() {
       router.push("/admin/property-approvals")
     } catch (error) {
       console.error("Rejection failed:", error)
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
+  const handleVerify = async (currentVerified: boolean) => {
+    setSubmitting(currentVerified ? "unverify" : "verify")
+    try {
+      const endpoint = currentVerified ? "unverify" : "verify"
+      await fetch(`${API_BASE_URL}/api/admin/properties/${id}/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": sessionStorage.getItem("userId") || "",
+        },
+      })
+      // Refresh property data
+      const res = await fetch(`${API_BASE_URL}/api/admin/properties/${id}`, {
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": sessionStorage.getItem("userId") || "",
+        },
+      })
+      const data = await res.json()
+      setProperty(data)
+    } catch (error) {
+      console.error("Verify/Unverify failed:", error)
     } finally {
       setSubmitting(null)
     }
@@ -147,10 +227,12 @@ export default function PropertyDetailPage() {
 
   const getTransactionTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case "rent":
+      case "lease":
         return "default"
       case "sale":
         return "secondary"
+      case "pg":
+        return "outline"
       default:
         return "outline"
     }
@@ -181,6 +263,52 @@ export default function PropertyDetailPage() {
     }
   }
 
+  const getDocumentUrl = (documentUrl: string) => {
+    const { data } = supabase.storage.from("user-documents").getPublicUrl(documentUrl)
+    return data.publicUrl
+  }
+
+  const getPropertyDocumentUrl = (documentPath: string) => {
+    const { data } = supabase.storage.from("property-files").getPublicUrl(documentPath)
+    return data.publicUrl
+  }
+
+  const renderStars = (rating: number | null) => {
+    if (!rating) return <span className="text-muted-foreground">No rating</span>
+
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+          />
+        ))}
+        <span className="ml-1 text-sm font-medium">{rating.toFixed(1)}</span>
+      </div>
+    )
+  }
+
+  const getOwnerPictureUrl = (picture: any) => {
+    if (!picture) return null
+
+    // Handle different picture formats from JSONB
+    if (typeof picture === "string") {
+      return picture
+    }
+
+    if (picture && typeof picture === "object") {
+      // Handle various JSONB picture formats
+      return picture.url || picture.src || picture.path || null
+    }
+
+    return null
+  }
+
+  const getVerifiedDocumentsCount = () => {
+    return ownerDocuments.filter((doc) => doc.verified).length
+  }
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -203,6 +331,9 @@ export default function PropertyDetailPage() {
     )
   }
 
+  const ownerPictureUrl = getOwnerPictureUrl(property.owner?.picture)
+  const verifiedDocsCount = getVerifiedDocumentsCount()
+
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
       {/* Header with Breadcrumb */}
@@ -217,9 +348,17 @@ export default function PropertyDetailPage() {
             <p className="text-muted-foreground">Review and approve property listing</p>
           </div>
         </div>
-        <Badge variant="outline" className="text-sm">
-          ID: {property.id.slice(0, 8)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {property.verified && (
+            <Badge variant="outline" className="text-green-600 border-green-600">
+              <Shield className="h-3 w-3 mr-1" />
+              Verified
+            </Badge>
+          )}
+          <Badge variant="outline" className="text-sm">
+            ID: {property.id.slice(0, 8)}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -234,7 +373,7 @@ export default function PropertyDetailPage() {
                     {getPropertyTypeIcon(property.type)}
                     {property.title}
                   </CardTitle>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant={getTransactionTypeColor(property.transaction_type)}>
                       {property.transaction_type}
                     </Badge>
@@ -245,12 +384,18 @@ export default function PropertyDetailPage() {
                         Negotiable
                       </Badge>
                     )}
+                    <Badge variant="outline">{property.status}</Badge>
                   </div>
+                  {property.rating && <div className="flex items-center gap-2">{renderStars(property.rating)}</div>}
                 </div>
                 <div className="text-right">
                   <div className="text-3xl font-bold text-green-600">{formatCurrency(property.price)}</div>
                   <div className="text-sm text-muted-foreground">
-                    {property.transaction_type === "rent" ? "per month" : "total price"}
+                    {property.transaction_type === "lease"
+                      ? "per month"
+                      : property.transaction_type === "pg"
+                        ? "per month"
+                        : "total price"}
                   </div>
                 </div>
               </div>
@@ -259,12 +404,12 @@ export default function PropertyDetailPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-muted rounded-lg">
                   <Users className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                  <div className="font-semibold">{property.capacity}</div>
+                  <div className="font-semibold">{property.capacity || "N/A"}</div>
                   <div className="text-xs text-muted-foreground">Capacity</div>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
                   <Users className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                  <div className="font-semibold">{property.occupancy}</div>
+                  <div className="font-semibold">{property.occupancy || 0}</div>
                   <div className="text-xs text-muted-foreground">Occupied</div>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
@@ -280,12 +425,132 @@ export default function PropertyDetailPage() {
                   <div className="text-xs text-muted-foreground">Listed</div>
                 </div>
               </div>
+              <Separator />
+              <div>
+                <h3 className="font-semibold mb-2">Description</h3>
+                <p className="text-muted-foreground leading-relaxed">{property.description}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Owner Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Property Owner
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {property.owner && (
+                <div className="space-y-4">
+                  {/* Owner Profile */}
+                  <div className="flex items-start gap-4 p-4 bg-muted/30 rounded-lg">
+                    <div className="flex-shrink-0">
+                      {ownerPictureUrl ? (
+                        <img
+                          src={ownerPictureUrl || "/placeholder.svg"}
+                          alt={property.owner.name}
+                          className="w-16 h-16 rounded-full object-cover border-2 border-border"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center border-2 border-border">
+                          <User className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <h3 className="font-semibold text-lg">{property.owner.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            Member since {new Date(property.owner.created_at).getFullYear()}
+                          </Badge>
+                          {verifiedDocsCount > 0 && (
+                            <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                              <Shield className="h-2 w-2 mr-1" />
+                              {verifiedDocsCount} Verified Doc{verifiedDocsCount !== 1 ? "s" : ""}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-3 w-3" />
+                          <span>{property.owner.email}</span>
+                        </div>
+                        {property.owner.phone_number && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            <span>{property.owner.phone_number}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Separator />
 
               <div>
-                <h3 className="font-semibold mb-2">Description</h3>
-                <p className="text-muted-foreground leading-relaxed">{property.description}</p>
+                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Owner Documents
+                  {ownerDocuments.length > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      {ownerDocuments.length} Total
+                    </Badge>
+                  )}
+                </h4>
+                {loadingOwnerDocs ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span className="text-sm">Loading owner documents...</span>
+                  </div>
+                ) : ownerDocuments.length > 0 ? (
+                  <div className="space-y-2">
+                    {ownerDocuments.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <span className="font-medium text-sm">{doc.document_type}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              {doc.verified ? (
+                                <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                                  <Shield className="h-2 w-2 mr-1" />
+                                  Verified
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-amber-600 border-amber-600 text-xs">
+                                  Pending Verification
+                                </Badge>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                Uploaded {new Date(doc.uploaded_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(getDocumentUrl(doc.document_url), "_blank")}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm font-medium">No documents uploaded</p>
+                    <p className="text-xs">Owner has not uploaded any verification documents</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -322,13 +587,13 @@ export default function PropertyDetailPage() {
             </Card>
           )}
 
-          {/* Documents */}
+          {/* Property Documents */}
           {property.documents && property.documents.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Documents ({property.documents.length})
+                  Property Documents ({property.documents.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -343,9 +608,7 @@ export default function PropertyDetailPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() =>
-                            window.open(`${SUPABASE_URL}/storage/v1/object/public/property-files/${doc.path}`, "_blank")
-                          }
+                          onClick={() => window.open(getPropertyDocumentUrl(doc.path), "_blank")}
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
                           View
@@ -355,7 +618,7 @@ export default function PropertyDetailPage() {
                           variant="outline"
                           onClick={() => {
                             const link = document.createElement("a")
-                            link.href = `${SUPABASE_URL}/storage/v1/object/public/property-files/${doc.path}`
+                            link.href = getPropertyDocumentUrl(doc.path)
                             link.download = doc.name
                             link.click()
                           }}
@@ -417,6 +680,16 @@ export default function PropertyDetailPage() {
                 <span className="text-muted-foreground">Approval Status:</span>
                 <Badge variant="outline">{property.approval_status}</Badge>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Verified:</span>
+                <Badge variant={property.verified ? "default" : "outline"}>{property.verified ? "Yes" : "No"}</Badge>
+              </div>
+              {property.rating && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Rating:</span>
+                  {renderStars(property.rating)}
+                </div>
+              )}
               {property.rejection_reason && (
                 <div>
                   <span className="text-muted-foreground">Rejection Reason:</span>
@@ -431,57 +704,88 @@ export default function PropertyDetailPage() {
           {/* Actions */}
           <Card>
             <CardHeader>
-              <CardTitle>Review Actions</CardTitle>
-              <CardDescription>Approve or reject this property listing</CardDescription>
+              <CardTitle>Property Actions</CardTitle>
+              <CardDescription>Manage this property listing</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Verify Button - Always available */}
               <Button
-                onClick={handleApproval}
+                onClick={() => handleVerify(property.verified)}
                 disabled={submitting !== null}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                {submitting === "approve" ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Approving...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve Property
-                  </>
-                )}
-              </Button>
-
-              <div className="space-y-2">
-                <Label htmlFor="rejection-reason">Rejection Reason</Label>
-                <Textarea
-                  id="rejection-reason"
-                  placeholder="Provide a detailed reason for rejection..."
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              <Button
-                onClick={handleRejection}
-                disabled={submitting !== null || !rejectionReason.trim()}
-                variant="destructive"
+                variant={property.verified ? "outline" : "default"}
                 className="w-full"
               >
-                {submitting === "reject" ? (
+                {submitting === "verify" || submitting === "unverify" ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Rejecting...
+                    {property.verified ? "Unverifying..." : "Verifying..."}
                   </>
                 ) : (
                   <>
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Reject Property
+                    {property.verified ? (
+                      <XCircle className="h-4 w-4 mr-2" />
+                    ) : (
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                    )}
+                    {property.verified ? "Remove Verification" : "Verify Property"}
                   </>
                 )}
               </Button>
+
+              {/* Approval Actions - Only for Pending properties */}
+              {property.approval_status === "Pending" && (
+                <>
+                  <Separator />
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Approval Actions</h4>
+                    <Button
+                      onClick={handleApproval}
+                      disabled={submitting !== null}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      {submitting === "approve" ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Approving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Approve Property
+                        </>
+                      )}
+                    </Button>
+                    <div className="space-y-2">
+                      <Label htmlFor="rejection-reason">Rejection Reason</Label>
+                      <Textarea
+                        id="rejection-reason"
+                        placeholder="Provide a detailed reason for rejection..."
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleRejection}
+                      disabled={submitting !== null || !rejectionReason.trim()}
+                      variant="destructive"
+                      className="w-full"
+                    >
+                      {submitting === "reject" ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Rejecting...
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject Property
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

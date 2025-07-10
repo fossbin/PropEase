@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { supabase } from "@/lib/supabaseClient"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,41 +22,60 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
   Users,
   Search,
-  Edit,
   Trash2,
-  Save,
-  X,
   Mail,
   Phone,
   Calendar,
-  UserCheck,
   Loader2,
   AlertTriangle,
-  Plus,
   Filter,
+  FileText,
+  Shield,
+  ExternalLink,
+  CheckCircle,
+  XCircle,
+  Eye,
 } from "lucide-react"
 
 interface User {
   id: string
   name: string
   email: string
-  phone_number: string
-  created_at?: string
-  last_login?: string
-  status?: "active" | "inactive"
+  phone_number: string | null
+  picture: any // JSONB field
+  created_at: string
+}
+
+interface UserDocument {
+  id: string
+  user_id: string
+  document_type: string
+  document_url: string
+  verified: boolean
+  uploaded_at: string
 }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
+  const [userDocuments, setUserDocuments] = useState<Record<string, UserDocument[]>>({})
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState<Record<string, boolean>>({})
-  const [formData, setFormData] = useState<Record<string, Partial<User>>>({})
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [documentLoading, setDocumentLoading] = useState<Record<string, boolean>>({})
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [documentsDialogOpen, setDocumentsDialogOpen] = useState(false)
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -71,43 +90,86 @@ export default function AdminUsersPage() {
         })
         const data = await res.json()
         setUsers(data)
+
+        // Fetch documents for all users
+        await fetchAllUserDocuments(data)
       } catch (err) {
         console.error("Failed to load users:", err)
       } finally {
         setLoading(false)
       }
     }
-
     fetchUsers()
   }, [])
 
-  const handleEdit = (user: User) => {
-    setEditing((prev) => ({ ...prev, [user.id]: true }))
-    setFormData((prev) => ({ ...prev, [user.id]: { name: user.name, phone_number: user.phone_number } }))
-  }
-
-  const handleCancel = (id: string) => {
-    setEditing((prev) => ({ ...prev, [id]: false }))
-    setFormData((prev) => ({ ...prev, [id]: {} }))
-  }
-
-  const handleSave = async (id: string) => {
-    setActionLoading(id)
+  const fetchAllUserDocuments = async (usersList: User[]) => {
     try {
-      await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": sessionStorage.getItem("userId") || "",
-        },
-        body: JSON.stringify(formData[id]),
+      const { data, error } = await supabase
+        .from("user_documents")
+        .select("*")
+        .order("uploaded_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching user documents:", error)
+        return
+      }
+
+      // Group documents by user_id
+      const documentsMap: Record<string, UserDocument[]> = {}
+      data?.forEach((doc) => {
+        if (!documentsMap[doc.user_id]) {
+          documentsMap[doc.user_id] = []
+        }
+        documentsMap[doc.user_id].push(doc)
       })
-      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...formData[id] } : u)))
-      handleCancel(id)
+
+      setUserDocuments(documentsMap)
     } catch (err) {
-      console.error("Update failed:", err)
+      console.error("Error fetching documents:", err)
+    }
+  }
+
+  const handleVerifyDocument = async (documentId: string, userId: string) => {
+    setDocumentLoading((prev) => ({ ...prev, [documentId]: true }))
+    try {
+      const { error } = await supabase.from("user_documents").update({ verified: true }).eq("id", documentId)
+
+      if (error) {
+        console.error("Error verifying document:", error)
+        return
+      }
+
+      // Update local state
+      setUserDocuments((prev) => ({
+        ...prev,
+        [userId]: prev[userId]?.map((doc) => (doc.id === documentId ? { ...doc, verified: true } : doc)) || [],
+      }))
+    } catch (err) {
+      console.error("Verification failed:", err)
     } finally {
-      setActionLoading(null)
+      setDocumentLoading((prev) => ({ ...prev, [documentId]: false }))
+    }
+  }
+
+  const handleUnverifyDocument = async (documentId: string, userId: string) => {
+    setDocumentLoading((prev) => ({ ...prev, [documentId]: true }))
+    try {
+      const { error } = await supabase.from("user_documents").update({ verified: false }).eq("id", documentId)
+
+      if (error) {
+        console.error("Error unverifying document:", error)
+        return
+      }
+
+      // Update local state
+      setUserDocuments((prev) => ({
+        ...prev,
+        [userId]: prev[userId]?.map((doc) => (doc.id === documentId ? { ...doc, verified: false } : doc)) || [],
+      }))
+    } catch (err) {
+      console.error("Unverification failed:", err)
+    } finally {
+      setDocumentLoading((prev) => ({ ...prev, [documentId]: false }))
     }
   }
 
@@ -123,6 +185,11 @@ export default function AdminUsersPage() {
       })
       setUsers((prev) => prev.filter((u) => u.id !== id))
       setSelectedUsers((prev) => prev.filter((userId) => userId !== id))
+      setUserDocuments((prev) => {
+        const newDocs = { ...prev }
+        delete newDocs[id]
+        return newDocs
+      })
     } catch (err) {
       console.error("Delete failed:", err)
     } finally {
@@ -159,15 +226,14 @@ export default function AdminUsersPage() {
   }
 
   const getInitials = (name?: string | null) => {
-    if (!name) return "NA";
+    if (!name) return "NA"
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2);
-  };
-
+      .slice(0, 2)
+  }
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A"
@@ -178,12 +244,43 @@ export default function AdminUsersPage() {
     })
   }
 
+  const getUserPictureUrl = (picture: any) => {
+    if (!picture) return null
+
+    if (typeof picture === "string") {
+      return picture
+    }
+
+    if (picture && typeof picture === "object") {
+      return picture.url || picture.src || picture.path || null
+    }
+
+    return null
+  }
+
+  const getUserDocumentStats = (userId: string) => {
+    const docs = userDocuments[userId] || []
+    const verified = docs.filter((doc) => doc.verified).length
+    const total = docs.length
+    return { verified, total }
+  }
+
+  const openDocumentsDialog = (user: User) => {
+    setSelectedUser(user)
+    setDocumentsDialogOpen(true)
+  }
+
   const filteredUsers = users.filter(
     (user) =>
-      (user.name??"").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.email??"").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.phone_number??"").includes(searchTerm),
+      (user.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.email ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.phone_number ?? "").includes(searchTerm),
   )
+
+  const totalVerifiedUsers = users.filter((user) => {
+    const stats = getUserDocumentStats(user.id)
+    return stats.verified > 0
+  }).length
 
   if (loading) {
     return (
@@ -204,13 +301,9 @@ export default function AdminUsersPage() {
           <Users className="h-8 w-8" />
           <div>
             <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-            <p className="text-muted-foreground">Manage and monitor user accounts</p>
+            <p className="text-muted-foreground">Manage users and verify their documents</p>
           </div>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
       </div>
 
       {/* Stats */}
@@ -224,19 +317,15 @@ export default function AdminUsersPage() {
             <div className="text-2xl font-bold">{users.length}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium">Verified Users</CardTitle>
+            <Shield className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {users.filter((u) => u.status === "active" || !u.status).length}
-            </div>
+            <div className="text-2xl font-bold text-green-600">{totalVerifiedUsers}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">New This Month</CardTitle>
@@ -255,7 +344,6 @@ export default function AdminUsersPage() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Selected</CardTitle>
@@ -350,63 +438,13 @@ export default function AdminUsersPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {filteredUsers.map((user) => (
-                <Card key={user.id} className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-4">
-                    {editing[user.id] ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-4">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src="/placeholder.svg" />
-                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 space-y-2">
-                            <div>
-                              <Label htmlFor={`name-${user.id}`}>Name</Label>
-                              <Input
-                                id={`name-${user.id}`}
-                                value={formData[user.id]?.name || ""}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    [user.id]: { ...prev[user.id], name: e.target.value },
-                                  }))
-                                }
-                                placeholder="Full Name"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`phone-${user.id}`}>Phone Number</Label>
-                              <Input
-                                id={`phone-${user.id}`}
-                                value={formData[user.id]?.phone_number || ""}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    [user.id]: { ...prev[user.id], phone_number: e.target.value },
-                                  }))
-                                }
-                                placeholder="Phone Number"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => handleSave(user.id)} disabled={actionLoading === user.id}>
-                            {actionLoading === user.id ? (
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            ) : (
-                              <Save className="h-3 w-3 mr-1" />
-                            )}
-                            Save Changes
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleCancel(user.id)}>
-                            <X className="h-3 w-3 mr-1" />
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
+              {filteredUsers.map((user) => {
+                const documentStats = getUserDocumentStats(user.id)
+                const userPictureUrl = getUserPictureUrl(user.picture)
+
+                return (
+                  <Card key={user.id} className="border-l-4 border-l-blue-500">
+                    <CardContent className="p-4">
                       <div className="space-y-4">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-4">
@@ -415,7 +453,7 @@ export default function AdminUsersPage() {
                               onCheckedChange={(checked) => handleSelectUser(user.id, checked as boolean)}
                             />
                             <Avatar className="h-12 w-12">
-                              <AvatarImage src="/placeholder.svg" />
+                              <AvatarImage src={userPictureUrl || "/placeholder.svg"} />
                               <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                             </Avatar>
                             <div className="space-y-1">
@@ -433,9 +471,18 @@ export default function AdminUsersPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                              {user.status || "Active"}
-                            </Badge>
+                            {documentStats.total > 0 && (
+                              <Badge variant={documentStats.verified > 0 ? "default" : "secondary"}>
+                                <FileText className="h-3 w-3 mr-1" />
+                                {documentStats.verified}/{documentStats.total} Verified
+                              </Badge>
+                            )}
+                            {documentStats.verified > 0 && (
+                              <Badge variant="outline" className="text-green-600 border-green-600">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Verified User
+                              </Badge>
+                            )}
                           </div>
                         </div>
 
@@ -445,10 +492,10 @@ export default function AdminUsersPage() {
                               <Calendar className="h-3 w-3" />
                               <span>Joined: {formatDate(user.created_at)}</span>
                             </div>
-                            {user.last_login && (
+                            {documentStats.total > 0 && (
                               <div className="flex items-center gap-1">
-                                <UserCheck className="h-3 w-3" />
-                                <span>Last login: {formatDate(user.last_login)}</span>
+                                <FileText className="h-3 w-3" />
+                                <span>{documentStats.total} documents uploaded</span>
                               </div>
                             )}
                           </div>
@@ -458,10 +505,101 @@ export default function AdminUsersPage() {
                         <Separator />
 
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleEdit(user)}>
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
+                          <Dialog open={documentsDialogOpen} onOpenChange={setDocumentsDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="outline" onClick={() => openDocumentsDialog(user)}>
+                                <Eye className="h-3 w-3 mr-1" />
+                                View Documents ({documentStats.total})
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <FileText className="h-5 w-5" />
+                                  Documents for {selectedUser?.name}
+                                </DialogTitle>
+                                <DialogDescription>Review and verify user documents</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                {selectedUser && userDocuments[selectedUser.id]?.length > 0 ? (
+                                  userDocuments[selectedUser.id].map((doc) => (
+                                    <Card key={doc.id}>
+                                      <CardContent className="p-4">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-3">
+                                            <FileText className="h-8 w-8 text-muted-foreground" />
+                                            <div>
+                                              <h4 className="font-medium">{doc.document_type}</h4>
+                                              <div className="flex items-center gap-2 mt-1">
+                                                {doc.verified ? (
+                                                  <Badge variant="outline" className="text-green-600 border-green-600">
+                                                    <Shield className="h-3 w-3 mr-1" />
+                                                    Verified
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge variant="outline" className="text-amber-600 border-amber-600">
+                                                    Pending Verification
+                                                  </Badge>
+                                                )}
+                                                <span className="text-xs text-muted-foreground">
+                                                  Uploaded {formatDate(doc.uploaded_at)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => window.open(doc.document_url)}
+                                            >
+                                              <ExternalLink className="h-3 w-3 mr-1" />
+                                              View
+                                            </Button>
+                                            {doc.verified ? (
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleUnverifyDocument(doc.id, selectedUser.id)}
+                                                disabled={documentLoading[doc.id]}
+                                              >
+                                                {documentLoading[doc.id] ? (
+                                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                ) : (
+                                                  <XCircle className="h-3 w-3 mr-1" />
+                                                )}
+                                                Unverify
+                                              </Button>
+                                            ) : (
+                                              <Button
+                                                size="sm"
+                                                onClick={() => handleVerifyDocument(doc.id, selectedUser.id)}
+                                                disabled={documentLoading[doc.id]}
+                                                className="bg-green-600 hover:bg-green-700"
+                                              >
+                                                {documentLoading[doc.id] ? (
+                                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                ) : (
+                                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                                )}
+                                                Verify
+                                              </Button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  ))
+                                ) : (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    <FileText className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                                    <p>No documents uploaded by this user</p>
+                                  </div>
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button size="sm" variant="destructive" disabled={actionLoading === user.id}>
@@ -477,7 +615,8 @@ export default function AdminUsersPage() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete User</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete {user.name}? This action cannot be undone.
+                                  Are you sure you want to delete {user.name}? This action cannot be undone and will
+                                  also delete all their documents.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -493,10 +632,10 @@ export default function AdminUsersPage() {
                           </AlertDialog>
                         </div>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

@@ -26,6 +26,8 @@ import {
   Shield,
   ShieldCheck,
   Ban,
+  Power,
+  XCircle,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -36,6 +38,7 @@ interface Property {
   transaction_type: string
   is_negotiable: boolean
   status: string
+  approval_status: string
   created_at: string
   owner_name: string
   verified: boolean
@@ -47,11 +50,12 @@ export default function PropertyApprovalsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [transactionFilter, setTransactionFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
   const [selectedProperties, setSelectedProperties] = useState<string[]>([])
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-
   const router = useRouter()
+
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
   const fetchPending = async () => {
@@ -75,10 +79,11 @@ export default function PropertyApprovalsPage() {
     fetchPending()
   }, [])
 
-  const handleVerify = async (id: string) => {
+  const handleDisableEnable = async (id: string, currentStatus: string) => {
     setActionLoading(id)
     try {
-      await fetch(`${API_BASE_URL}/api/admin/properties/${id}/verify`, {
+      const endpoint = currentStatus === "Disabled" ? "enable" : "disable"
+      await fetch(`${API_BASE_URL}/api/admin/properties/${id}/${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,46 +92,21 @@ export default function PropertyApprovalsPage() {
       })
       await fetchPending()
     } catch (err) {
-      console.error("Verify failed:", err)
+      console.error("Disable/Enable failed:", err)
     } finally {
       setActionLoading(null)
-    }
-  }
-
-  const handleDisable = async (id: string) => {
-    setActionLoading(id)
-    try {
-      await fetch(`${API_BASE_URL}/api/admin/properties/${id}/disable`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": sessionStorage.getItem("userId") || "",
-        },
-      })
-      await fetchPending()
-    } catch (err) {
-      console.error("Disable failed:", err)
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const handleBulkVerify = async () => {
-    setBulkActionLoading(true)
-    try {
-      await Promise.all(selectedProperties.map((id) => handleVerify(id)))
-      setSelectedProperties([])
-    } catch (err) {
-      console.error("Bulk verify failed:", err)
-    } finally {
-      setBulkActionLoading(false)
     }
   }
 
   const handleBulkDisable = async () => {
     setBulkActionLoading(true)
     try {
-      await Promise.all(selectedProperties.map((id) => handleDisable(id)))
+      await Promise.all(
+        selectedProperties.map((id) => {
+          const property = pendingProperties.find((p) => p.id === id)
+          return handleDisableEnable(id, property?.approval_status || "")
+        }),
+      )
       setSelectedProperties([])
     } catch (err) {
       console.error("Bulk disable failed:", err)
@@ -154,12 +134,49 @@ export default function PropertyApprovalsPage() {
 
   const getTransactionTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case "rent":
+      case "lease":
         return "default"
       case "sale":
         return "secondary"
+      case "pg":
+        return "outline"
       default:
         return "outline"
+    }
+  }
+
+  const getApprovalStatusBadge = (status: string) => {
+    switch (status) {
+      case "Pending":
+        return (
+          <Badge variant="outline" className="text-orange-600 border-orange-600">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        )
+      case "Approved":
+        return (
+          <Badge variant="outline" className="text-green-600 border-green-600">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Approved
+          </Badge>
+        )
+      case "Rejected":
+        return (
+          <Badge variant="outline" className="text-red-600 border-red-600">
+            <XCircle className="h-3 w-3 mr-1" />
+            Rejected
+          </Badge>
+        )
+      case "Disabled":
+        return (
+          <Badge variant="outline" className="text-gray-600 border-gray-600">
+            <Ban className="h-3 w-3 mr-1" />
+            Disabled
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{status}</Badge>
     }
   }
 
@@ -180,7 +197,10 @@ export default function PropertyApprovalsPage() {
     const matchesType = typeFilter === "all" || property.type.toLowerCase() === typeFilter.toLowerCase()
     const matchesTransaction =
       transactionFilter === "all" || property.transaction_type.toLowerCase() === transactionFilter.toLowerCase()
-    return matchesSearch && matchesType && matchesTransaction
+    const matchesStatus =
+      statusFilter === "all" || property.approval_status.toLowerCase() === statusFilter.toLowerCase()
+
+    return matchesSearch && matchesType && matchesTransaction && matchesStatus
   })
 
   const handleSelectAll = (checked: boolean) => {
@@ -199,12 +219,23 @@ export default function PropertyApprovalsPage() {
     }
   }
 
+  const getStats = () => {
+    const pending = pendingProperties.filter((p) => p.approval_status === "Pending").length
+    const approved = pendingProperties.filter((p) => p.approval_status === "Approved").length
+    const disabled = pendingProperties.filter((p) => p.approval_status === "Disabled").length
+    const verified = pendingProperties.filter((p) => p.verified).length
+
+    return { pending, approved, disabled, verified }
+  }
+
+  const stats = getStats()
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto p-6">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin mr-2" />
-          <span className="text-lg">Loading pending properties...</span>
+          <span className="text-lg">Loading properties...</span>
         </div>
       </div>
     )
@@ -216,8 +247,8 @@ export default function PropertyApprovalsPage() {
       <div className="flex items-center gap-3">
         <Shield className="h-8 w-8" />
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Property Approvals</h1>
-          <p className="text-muted-foreground">Review and approve pending property listings</p>
+          <h1 className="text-3xl font-bold tracking-tight">Property Management</h1>
+          <p className="text-muted-foreground">Review, approve, and manage property listings</p>
         </div>
       </div>
 
@@ -226,22 +257,37 @@ export default function PropertyApprovalsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <Clock className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{pendingProperties.length}</div>
+            <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
           </CardContent>
         </Card>
-
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Verified</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-green-500" />
+            <ShieldCheck className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {pendingProperties.filter((p) => p.verified).length}
-            </div>
+            <div className="text-2xl font-bold text-blue-600">{stats.verified}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Disabled</CardTitle>
+            <Ban className="h-4 w-4 text-gray-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-600">{stats.disabled}</div>
           </CardContent>
         </Card>
       </div>
@@ -279,8 +325,21 @@ export default function PropertyApprovalsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Transactions</SelectItem>
-                <SelectItem value="rent">For Rent</SelectItem>
-                <SelectItem value="sale">For Sale</SelectItem>
+                <SelectItem value="lease">Lease</SelectItem>
+                <SelectItem value="sale">Sale</SelectItem>
+                <SelectItem value="pg">PG</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="disabled">Disabled</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -294,21 +353,13 @@ export default function PropertyApprovalsPage() {
           <AlertDescription className="flex items-center justify-between">
             <span>{selectedProperties.length} properties selected</span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={handleBulkVerify} disabled={bulkActionLoading}>
-                {bulkActionLoading ? (
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                ) : (
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                )}
-                Verify All
-              </Button>
               <Button size="sm" variant="destructive" onClick={handleBulkDisable} disabled={bulkActionLoading}>
                 {bulkActionLoading ? (
                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Ban className="h-3 w-3 mr-1" />
+                  <Power className="h-3 w-3 mr-1" />
                 )}
-                Disable All
+                Toggle Status
               </Button>
             </div>
           </AlertDescription>
@@ -321,11 +372,11 @@ export default function PropertyApprovalsPage() {
           <CardContent className="text-center py-12">
             <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">
-              {pendingProperties.length === 0 ? "No pending properties" : "No properties match your search"}
+              {pendingProperties.length === 0 ? "No properties found" : "No properties match your search"}
             </h3>
             <p className="text-muted-foreground">
               {pendingProperties.length === 0
-                ? "All properties have been reviewed. Great job!"
+                ? "Properties will appear here once they are submitted."
                 : "Try adjusting your search terms or filters."}
             </p>
           </CardContent>
@@ -336,7 +387,7 @@ export default function PropertyApprovalsPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Building className="h-5 w-5" />
-                Pending Properties ({filteredProperties.length})
+                Properties ({filteredProperties.length})
               </CardTitle>
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -350,7 +401,20 @@ export default function PropertyApprovalsPage() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredProperties.map((property) => (
-                <Card key={property.id} className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow">
+                <Card
+                  key={property.id}
+                  className={`border-l-4 hover:shadow-md transition-shadow ${
+                    property.approval_status === "Pending"
+                      ? "border-l-orange-500"
+                      : property.approval_status === "Approved"
+                        ? "border-l-green-500"
+                        : property.approval_status === "Rejected"
+                          ? "border-l-red-500"
+                          : property.approval_status === "Disabled"
+                            ? "border-l-gray-500"
+                            : "border-l-blue-500"
+                  }`}
+                >
                   <CardContent className="p-4 space-y-4">
                     {/* Header with Checkbox */}
                     <div className="flex items-start justify-between">
@@ -362,7 +426,7 @@ export default function PropertyApprovalsPage() {
                         />
                         <div className="space-y-1">
                           <h3 className="font-semibold text-lg leading-tight">{property.title}</h3>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Badge variant="outline" className="text-xs">
                               {getPropertyTypeIcon(property.type)}
                               <span className="ml-1">{property.type}</span>
@@ -373,12 +437,15 @@ export default function PropertyApprovalsPage() {
                           </div>
                         </div>
                       </div>
-                      {property.verified && (
-                        <Badge variant="secondary" className="text-xs">
-                          <ShieldCheck className="h-3 w-3 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {getApprovalStatusBadge(property.approval_status)}
+                        {property.verified && (
+                          <Badge variant="outline" className="text-blue-600 border-blue-600 text-xs">
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     {/* Property Details */}
@@ -419,42 +486,24 @@ export default function PropertyApprovalsPage() {
                         <Eye className="h-3 w-3 mr-1" />
                         View Details
                       </Button>
-                    </div>
-
-                    <div className="flex gap-2">
                       <Button
                         size="sm"
-                        variant="default"
+                        variant={property.approval_status === "Disabled" ? "default" : "destructive"}
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleVerify(property.id)
+                          handleDisableEnable(property.id, property.approval_status)
                         }}
                         disabled={actionLoading === property.id}
                         className="flex-1"
                       >
                         {actionLoading === property.id ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : (
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                        )}
-                        {property.verified ? "Unverify" : "Verify"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDisable(property.id)
-                        }}
-                        disabled={actionLoading === property.id}
-                        className="flex-1"
-                      >
-                        {actionLoading === property.id ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : property.approval_status === "Disabled" ? (
+                          <Power className="h-3 w-3 mr-1" />
                         ) : (
                           <Ban className="h-3 w-3 mr-1" />
                         )}
-                        Disable
+                        {property.approval_status === "Disabled" ? "Enable" : "Disable"}
                       </Button>
                     </div>
                   </CardContent>
