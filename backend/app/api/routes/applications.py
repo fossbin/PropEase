@@ -5,13 +5,12 @@ from datetime import date
 from app.dependencies import get_current_user
 from app.db.supabase import get_supabase_client as get_supabase
 
-router = APIRouter(prefix="/api/applications", tags=["Applications"])
+router = APIRouter(prefix="/applications", tags=["Applications"])
 
 @router.post("/apply/{property_id}", status_code=201)
 def submit_application(
     property_id: UUID,
     message: str = Form(...),
-    documents: Optional[UploadFile] = File(None),
     bid_amount: Optional[float] = Form(None),
     lease_start: Optional[date] = Form(None),
     lease_end: Optional[date] = Form(None),
@@ -27,10 +26,10 @@ def submit_application(
         "applicant_id": applicant_id,
         "message": message,
         "bid_amount": bid_amount,
-        "lease_start": lease_start,
-        "lease_end": lease_end,
-        "subscription_start": subscription_start,
-        "subscription_end": subscription_end,
+        "lease_start": lease_start.isoformat() if lease_start else None,
+        "lease_end": lease_end.isoformat() if lease_end else None,
+        "subscription_start": subscription_start.isoformat() if subscription_start else None,
+        "subscription_end": subscription_end.isoformat() if subscription_end else None,
         "status": "Pending"
     }
 
@@ -43,20 +42,36 @@ def submit_application(
 @router.get("/sent")
 def fetch_user_applications(user=Depends(get_current_user), supabase=Depends(get_supabase)):
     user_id = user["id"]
-    response = supabase.table("applications").select("*").eq("applicant_id", str(user_id)).order("created_at", desc=True).execute()
-    return response.data or []
+    response = supabase.table("applications").select("*" ).eq("applicant_id", str(user_id)).order("created_at", desc=True).execute()
+    applications = response.data or []
+
+    if not applications:
+        return []
+
+    property_ids = list(set(app["property_id"] for app in applications))
+    prop_res = supabase.table("properties").select("id, title, type, status, price").in_("id", property_ids).execute()
+    prop_map = {p["id"]: p for p in (prop_res.data or [])}
+
+    for app in applications:
+        prop = prop_map.get(app["property_id"], {})
+        app["property_title"] = prop.get("title", "Unknown")
+        app["property_type"] = prop.get("type", "Unknown")
+        app["property_status"] = prop.get("status", "Unknown")
+        app["property_price"] = prop.get("price", None)
+
+    return applications
 
 
 @router.get("/received")
 def fetch_received_applications(user=Depends(get_current_user), supabase=Depends(get_supabase)):
     provider_id = user["id"]
-    prop_res = supabase.table("properties").select("id, title, type").eq("owner_id", str(provider_id)).execute()
+    prop_res = supabase.table("properties").select("id, title, type, status, price").eq("owner_id", str(provider_id)).execute()
     properties = prop_res.data or []
 
     if not properties:
         return []
 
-    property_map = {p["id"]: {"title": p["title"], "type": p["type"]} for p in properties}
+    property_map = {p["id"]: p for p in properties}
     property_ids = list(property_map.keys())
 
     apps_res = (
@@ -73,12 +88,15 @@ def fetch_received_applications(user=Depends(get_current_user), supabase=Depends
         prop_info = property_map.get(app["property_id"], {})
         app["property_title"] = prop_info.get("title", "Unknown")
         app["property_type"] = prop_info.get("type", "Unknown")
+        app["property_status"] = prop_info.get("status", "Unknown")
+        app["property_price"] = prop_info.get("price", None)
 
     return applications
 
 
 @router.get("/{application_id}")
 def get_application_detail(application_id: UUID, supabase=Depends(get_supabase)):
+    # Fetch application
     app_res = supabase.table("applications").select("*").eq("id", str(application_id)).single().execute()
     if not app_res or not app_res.data:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -86,20 +104,25 @@ def get_application_detail(application_id: UUID, supabase=Depends(get_supabase))
     app_data = app_res.data
     applicant_id = app_data["applicant_id"]
 
-    user_res = supabase.table("users").select("id, name, email, phone_number").eq("id", applicant_id).single().execute()
-    user_data = user_res.data if user_res and user_res.data else {}
+    # Fetch user profile
+    user_res = supabase.table("users").select("name, email, phone_number").eq("id", applicant_id).single().execute()
+    user_data = user_res.data or {}
 
+    # Fetch user documents
     docs_res = supabase.table("user_documents").select("id, document_url, document_type, verified").eq("user_id", applicant_id).execute()
-    user_documents = docs_res.data if docs_res and docs_res.data else []
+    user_documents = docs_res.data or []
 
-    app_data.update({
-        "applicant_name": user_data.get("name", "Unknown"),
-        "applicant_email": user_data.get("email", ""),
-        "applicant_phone": user_data.get("phone_number", ""),
-        "user_documents": user_documents
-    })
+    # Fetch property details
+    prop_res = supabase.table("properties").select("title, type, status, price, is_negotiable, transaction_type").eq("id", app_data["property_id"]).single().execute()
+    property_data = prop_res.data or {}
 
-    return app_data
+    return {
+        "application": app_data,
+        "user_profile": user_data,
+        "user_documents": user_documents,
+        "property_details": property_data
+    }
+
 
 
 @router.patch("/{application_id}")
@@ -127,7 +150,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
         owner_id = property_data["owner_id"]
         price = app.get("bid_amount") or property_data.get("price")
 
-        if prop_type == "Lease" and app.get("lease_start") and app.get("lease_end"):
+        if prop_type == "lease" and app.get("lease_start") and app.get("lease_end"):
             lease_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],
@@ -144,7 +167,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             }
             supabase.table("leases").insert(lease_payload).execute()
 
-        elif prop_type == "Sale":
+        elif prop_type == "sale":
             account_res = supabase.table("accounts").select("balance").eq("user_id", app["applicant_id"]).single().execute()
             if not account_res.data:
                 raise HTTPException(status_code=400, detail="Applicant has no associated account")
@@ -163,7 +186,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             }
             supabase.table("sales").insert(sale_payload).execute()
 
-        elif prop_type == "PG" and app.get("subscription_start") and app.get("subscription_end"):
+        elif prop_type == "pg" and app.get("subscription_start") and app.get("subscription_end"):
             sub_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],
