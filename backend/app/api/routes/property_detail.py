@@ -19,7 +19,6 @@ def get_property_details(
             type,
             description,
             price,
-            pricing_type,
             capacity,
             occupancy,
             photos,
@@ -27,46 +26,63 @@ def get_property_details(
             status,
             owner_id,
             transaction_type,
+            is_negotiable,
+            approval_status,
+            verified,
             property_locations (
                 address_line,
                 city,
                 state,
                 country,
-                zipcode
+                zipcode,
+                latitude,
+                longitude
             )
             """
         )
         .eq("id", str(property_id))
         .eq("verified", True)
         .eq("approval_status", "Approved")
-        .single()
         .execute()
     )
 
-    if not result or not result.data:
+    if not result or not result.data or len(result.data) == 0:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    data = result.data
-    location_list = data.get("property_locations", [])
+    property_data = result.data[0]  
+    location_list = property_data.get("property_locations", [])
     location = location_list[0] if isinstance(location_list, list) and location_list else {}
 
+    reviews_res = (
+        supabase.table("reviews")
+        .select("reviewer_id, rating, comment, created_at")
+        .eq("property_id", str(property_id))
+        .order("created_at", desc=True)
+        .execute()
+    )
+
     return {
-        "id": data["id"],
-        "title": data["title"],
-        "type": data["type"],
-        "description": data["description"],
-        "price": float(data["price"]),
-        "pricing_type": data.get("pricing_type", ""),
-        "capacity": data.get("capacity", 0),
-        "occupancy": data.get("occupancy", 0),
-        "photos": data.get("photos", []),
-        "rating": float(data["rating"]) if data["rating"] is not None else None,
-        "status": data.get("status", ""),
-        "owner_id": data["owner_id"],
-        "transaction_type": data.get("transaction_type", ""),
+        "id": property_data["id"],
+        "title": property_data["title"],
+        "type": property_data["type"],
+        "description": property_data["description"],
+        "price": float(property_data["price"]),
+        "capacity": property_data["capacity"],
+        "occupancy": property_data["occupancy"],
+        "photos": property_data["photos"],
+        "rating": float(property_data["rating"]) if property_data["rating"] is not None else None,
+        "status": property_data["status"],
+        "owner_id": property_data["owner_id"],
+        "transaction_type": property_data["transaction_type"],
+        "is_negotiable": property_data["is_negotiable"],
+        "approval_status": property_data["approval_status"],
+        "verified": property_data["verified"],
         "address_line": location.get("address_line", ""),
         "city": location.get("city", ""),
         "state": location.get("state", ""),
         "country": location.get("country", ""),
-        "zipcode": location.get("zipcode", "")
+        "zipcode": location.get("zipcode", ""),
+        "latitude": location.get("latitude"),
+        "longitude": location.get("longitude"),
+        "reviews": reviews_res.data or []
     }
