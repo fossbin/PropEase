@@ -5,7 +5,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50">
+      <section className="pt-10 relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-16">
           <div className="text-center">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
@@ -14,44 +14,6 @@ export default function HomePage() {
                 Home
               </span>
             </h1>
-            {/* <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-3xl mx-auto">
-              Discover thousands of properties for rent, sale, and PG accommodations. 
-              Your dream home is just a click away.
-            </p> */}
-            
-            {/* Search Bar */}
-            {/* <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input 
-                      type="text" 
-                      placeholder="Enter location"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg text-black focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    />
-                  </div>
-                  <select className="px-4 py-3 border border-gray-200 rounded-lg  text-black focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
-                    <option>Property Type</option>
-                    <option>Apartment</option>
-                    <option>House</option>
-                    <option>Commercial</option>
-                    <option>PG/Hostel</option>
-                  </select>
-                  <select className="px-4 py-3 border border-gray-200 rounded-lg text-black focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
-                    <option>Budget Range</option>
-                    <option>₹10k - ₹25k</option>
-                    <option>₹25k - ₹50k</option>
-                    <option>₹50k - ₹1L</option>
-                    <option>₹1L+</option>
-                  </select>
-                  <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2">
-                    <Search className="w-5 h-5" />
-                    <span>Search</span>
-                  </button>
-                </div>
-              </div>
-            </div> */}
           </div>
         </div>
         
@@ -64,7 +26,7 @@ export default function HomePage() {
       </section>
 
       {/* Property Types Section */}
-      <section className="py-16 bg-white">
+      <section className="py-10 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
@@ -128,7 +90,7 @@ export default function HomePage() {
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="py-16 bg-white">
+      <section className="py-5 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
