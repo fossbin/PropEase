@@ -18,7 +18,6 @@ from app.api.routes import (
     admin_users,
     explore,
     property_detail,
-    property_apply,
     bookings,
     purchases,
 )
@@ -65,7 +64,6 @@ app.include_router(admin_property.router, prefix="/api/admin")
 app.include_router(admin_users.router, prefix="/api/admin")
 app.include_router(explore.router, prefix="/api")
 app.include_router(property_detail.router, prefix="/api")
-app.include_router(property_apply.router, prefix="/api")
 app.include_router(bookings.router, prefix="/api")
 app.include_router(purchases.router, prefix="/api")
 

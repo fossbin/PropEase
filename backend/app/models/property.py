@@ -8,7 +8,7 @@ class PropertyBase(BaseModel):
     status: str 
     price: float
     transaction_type: str  
-    is_negotiable: bool
+    is_negotiable: Optional[bool]
     capacity: Optional[int]
     photos: Optional[List[str]] = []
     documents: Optional[List[Dict[str, str]]] = []
