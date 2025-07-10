@@ -108,28 +108,6 @@ export default function RegisterPage() {
 
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-5">
-                <div className="relative">
-                  <label htmlFor="name" className="block text-sm font-medium text-white mb-2">
-                    Full name
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <svg className="h-5 w-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <input
-                      id="name"
-                      name="name"
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-white placeholder-slate-400 backdrop-blur-sm"
-                      placeholder="Enter your full name"
-                    />
-                  </div>
-                </div>
 
                 <div className="relative">
                   <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
