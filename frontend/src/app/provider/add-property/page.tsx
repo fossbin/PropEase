@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress"
 import LocationPicker from "@/components/LocationPicker"
 import imageCompression from "browser-image-compression"
 import Script from "next/script"
-import { Home, MapPin, Camera, FileText, DollarSign, Users, X, Upload, Loader2, CheckCircle } from "lucide-react"
+import { Home, MapPin, Camera, FileText, IndianRupee, Users, X, Upload, Loader2, CheckCircle } from "lucide-react"
 
 const userID = typeof window !== "undefined" ? sessionStorage.getItem("userId") || "" : ""
 
@@ -56,6 +56,8 @@ export default function AddPropertyPage() {
       formData.price,
       formData.location.latitude,
       formData.location.longitude,
+      formData.photos.length > 0 ? formData.photos[0] : "", 
+      formData.documents.length > 0 ? formData.documents[0].path : "",
     ]
     const filledFields = requiredFields.filter((field) => field && field.toString().trim() !== "").length
     return Math.round((filledFields / requiredFields.length) * 100)
@@ -99,20 +101,26 @@ export default function AddPropertyPage() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
+    const { name, value } = e.target;
+    if (name === "transaction_type" && value === "PG") {
+      setFormData((prev) => ({ ...prev, transaction_type: value, is_negotiable: false }));
+      return;
+    }
+
     if (name.startsWith("location.")) {
-      const key = name.split(".")[1]
+      const key = name.split(".")[1];
       setFormData((prev) => ({
         ...prev,
         location: {
           ...prev.location,
           [key]: value,
         },
-      }))
+      }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }))
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
-  }
+  };
+
 
   const handleBooleanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target
@@ -178,7 +186,7 @@ export default function AddPropertyPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/properties`, {
+      const res = await fetch(`${API_BASE_URL}/api/properties/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -272,9 +280,9 @@ export default function AddPropertyPage() {
                     className="w-full mt-1 p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select Transaction Type</option>
-                    <option value="Sale">Sale</option>
-                    <option value="Lease">Lease</option>
-                    <option value="PG">PG</option>
+                    <option value="sale">Sale</option>
+                    <option value="lease">Lease</option>
+                    <option value="pg">PG</option>
                   </select>
                 </div>
               </div>
@@ -299,7 +307,7 @@ export default function AddPropertyPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-green-600" />
+                <IndianRupee className="h-5 w-5 text-green-600" />
                 Pricing & Capacity
               </CardTitle>
               <CardDescription>Set your pricing and property capacity details</CardDescription>
@@ -311,7 +319,7 @@ export default function AddPropertyPage() {
                     Price *
                   </Label>
                   <div className="relative mt-1">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
                       type="number"
                       name="price"
@@ -354,6 +362,9 @@ export default function AddPropertyPage() {
                 <Label htmlFor="is_negotiable" className="text-sm font-medium">
                   Price is negotiable
                 </Label>
+                {formData.transaction_type === "PG" && (
+                  <span className="text-xs text-red-500">(PG listings are not negotiable)</span>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -27,6 +27,16 @@ export default function EditPropertyPage() {
     is_negotiable: false,
   });
 
+  const [locationData, setLocationData] = useState({
+    address_line: '',
+    city: '',
+    state: '',
+    country: '',
+    zipcode: '',
+    latitude: '',
+    longitude: '',
+  });
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +63,16 @@ export default function EditPropertyPage() {
           capacity: data.capacity?.toString() || '',
           is_negotiable: data.is_negotiable || false,
         });
+
+        setLocationData({
+          address_line: data.location?.address_line || '',
+          city: data.location?.city || '',
+          state: data.location?.state || '',
+          country: data.location?.country || '',
+          zipcode: data.location?.zipcode || '',
+          latitude: data.location?.latitude?.toString() || '',
+          longitude: data.location?.longitude?.toString() || '',
+        });
       } catch (error) {
         console.error('Error fetching property:', error);
       } finally {
@@ -69,20 +89,36 @@ export default function EditPropertyPage() {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     const newValue = type === 'checkbox' ? checked : value;
-    setFormData((prev) => ({ ...prev, [name]: newValue }));
+
+    if (name in locationData) {
+      setLocationData((prev) => ({ ...prev, [name]: newValue }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: newValue }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const updatedPayload = {
-      title: formData.title,
-      description: formData.description,
-      type: formData.type,
-      transaction_type: formData.transaction_type,
-      price: parseFloat(formData.price),
-      capacity: parseInt(formData.capacity),
-      is_negotiable: formData.is_negotiable,
+      property: {
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        transaction_type: formData.transaction_type,
+        price: parseFloat(formData.price),
+        capacity: parseInt(formData.capacity),
+        is_negotiable: formData.is_negotiable,
+      },
+      location: {
+        address_line: locationData.address_line,
+        city: locationData.city,
+        state: locationData.state,
+        country: locationData.country,
+        zipcode: locationData.zipcode,
+        latitude: parseFloat(locationData.latitude),
+        longitude: parseFloat(locationData.longitude),
+      },
     };
 
     try {
@@ -112,6 +148,7 @@ export default function EditPropertyPage() {
     <div className="max-w-3xl mx-auto">
       <h2 className="text-2xl font-semibold mb-4">Edit Property</h2>
       <form className="space-y-4" onSubmit={handleSubmit}>
+        {/* Property Fields */}
         <div>
           <Label htmlFor="title">Title</Label>
           <Input name="title" value={formData.title} onChange={handleChange} required />
@@ -133,9 +170,7 @@ export default function EditPropertyPage() {
           >
             <option value="">Select Type</option>
             {propertyTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
@@ -151,9 +186,7 @@ export default function EditPropertyPage() {
           >
             <option value="">Select Transaction</option>
             {transactionTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
@@ -177,6 +210,43 @@ export default function EditPropertyPage() {
             className="w-4 h-4"
           />
           <Label htmlFor="is_negotiable">Is Price Negotiable?</Label>
+        </div>
+
+        {/* Location Fields */}
+        <div className="pt-6">
+          <h3 className="text-lg font-semibold mb-2">Location Details</h3>
+
+          <div>
+            <Label htmlFor="address_line">Address Line</Label>
+            <Input name="address_line" value={locationData.address_line} onChange={handleChange} required />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input name="city" value={locationData.city} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="state">State</Label>
+              <Input name="state" value={locationData.state} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="country">Country</Label>
+              <Input name="country" value={locationData.country} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="zipcode">Zipcode</Label>
+              <Input name="zipcode" value={locationData.zipcode} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="latitude">Latitude</Label>
+              <Input type="number" step="any" name="latitude" value={locationData.latitude} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="longitude">Longitude</Label>
+              <Input type="number" step="any" name="longitude" value={locationData.longitude} onChange={handleChange} />
+            </div>
+          </div>
         </div>
 
         <Button type="submit">Update Property</Button>
