@@ -65,8 +65,9 @@ async def upload_document(
         {"content-type": file.content_type}
     )
 
-    if res.get("error"):
+    if not res:
         raise HTTPException(status_code=500, detail="Failed to upload document")
+
 
     public_url = f"{SUPABASE_URL}/storage/v1/object/public/user-documents/{storage_path}"
 
@@ -80,9 +81,6 @@ async def upload_document(
 
 @router.get("/{user_id}/documents")
 async def get_user_documents(user_id: str, supabase: Client = Depends(get_supabase_client)):
-    """
-    Fetch all uploaded documents for a given user from user_documents table.
-    """
     result = supabase.table("user_documents").select("*").eq("user_id", user_id).order("uploaded_at", desc=True).execute()
     
     if not result.data:
