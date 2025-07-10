@@ -14,6 +14,15 @@ interface Document {
   verified: boolean;
 }
 
+interface PropertyDetails {
+  title: string;
+  type: string;
+  price: number;
+  status: string;
+  is_negotiable: boolean;
+  transaction_type: string;
+}
+
 interface Application {
   id: string;
   status: string;
@@ -23,6 +32,7 @@ interface Application {
   lease_end?: string;
   subscription_start?: string;
   subscription_end?: string;
+  property_id: string;
   property_title: string;
   applicant_id: string;
   applicant_name: string;
@@ -40,6 +50,7 @@ export default function ApplicationDetailPage() {
   const [application, setApplication] = useState<Application | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userDocuments, setUserDocuments] = useState<Document[]>([]);
+  const [propertyDetails, setPropertyDetails] = useState<PropertyDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
@@ -51,21 +62,11 @@ export default function ApplicationDetailPage() {
           headers: { 'X-User-Id': sessionStorage.getItem('userId') || '' },
         });
         const data = await res.json();
-        setApplication(data);
 
-        // Fetch user profile
-        const profileRes = await fetch(`${API_BASE_URL}/user/${data.applicant_id}`, {
-          headers: { 'X-User-Id': sessionStorage.getItem('userId') || '' },
-        });
-        const profile = await profileRes.json();
-        setUserProfile(profile);
-
-        // Fetch user documents
-        const docsRes = await fetch(`${API_BASE_URL}/user/${data.applicant_id}/documents`, {
-          headers: { 'X-User-Id': sessionStorage.getItem('userId') || '' },
-        });
-        const docs = await docsRes.json();
-        setUserDocuments(docs);
+        setApplication(data.application);
+        setUserProfile(data.user_profile);
+        setUserDocuments(data.user_documents);
+        setPropertyDetails(data.property_details);
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
@@ -75,6 +76,7 @@ export default function ApplicationDetailPage() {
 
     if (id) fetchApplication();
   }, [id]);
+
 
   const handleUpdate = async (status: 'Approved' | 'Rejected') => {
     setUpdating(true);
@@ -101,6 +103,19 @@ export default function ApplicationDetailPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Application to: {application.property_title}</h1>
+
+      {propertyDetails && (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <h2 className="text-lg font-semibold">Property Details</h2>
+            <p><strong>Type:</strong> {propertyDetails.type}</p>
+            <p><strong>Transaction:</strong> {propertyDetails.transaction_type}</p>
+            <p><strong>Status:</strong> {propertyDetails.status}</p>
+            <p><strong>Price:</strong> ₹{propertyDetails.price.toFixed(2)}</p>
+            <p><strong>Negotiable:</strong> {propertyDetails.is_negotiable ? 'Yes' : 'No'}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="space-y-3 p-4">

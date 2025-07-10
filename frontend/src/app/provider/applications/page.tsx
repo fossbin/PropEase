@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Card, CardContent } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { Eye } from 'lucide-react';
 
 interface Application {
   id: string;
@@ -16,154 +17,125 @@ interface Application {
   lease_end?: string;
   subscription_start?: string;
   subscription_end?: string;
-  property_title: string;
   applicant_name: string;
-  applicant_id: string;
   created_at: string;
 }
 
-interface Document {
-  id: string;
-  document_type: string;
-  document_url: string;
-  verified: boolean;
+interface PropertyGroup {
+  property_id: string;
+  property_title: string;
+  property_type: string;
+  applications: Application[];
 }
 
-export default function ApplicationDetailPage() {
-  const { id } = useParams();
-  const [application, setApplication] = useState<Application | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
+export default function ProviderApplicationsPage() {
+  const [groups, setGroups] = useState<PropertyGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
-    const fetchApplicationAndDocuments = async () => {
+    const fetchApplications = async () => {
       try {
-        // Fetch application details
-        const res = await fetch(`${API_BASE_URL}/api/applications/${id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/applications/received`, {
           headers: {
             'X-User-Id': sessionStorage.getItem('userId') || '',
           },
         });
-        const appData = await res.json();
-        setApplication(appData);
+        const apps = await res.json();
 
-        // Fetch user documents
-        if (appData?.applicant_id) {
-          const docRes = await fetch(`${API_BASE_URL}/api/users/${appData.applicant_id}/documents`);
-          const docs = await docRes.json();
-          setDocuments(docs);
+        const grouped: { [key: string]: PropertyGroup } = {};
+        for (const app of apps) {
+          const key = app.property_id;
+          if (!grouped[key]) {
+            grouped[key] = {
+              property_id: key,
+              property_title: app.property_title,
+              property_type: app.property_type,
+              applications: [],
+            };
+          }
+          grouped[key].applications.push(app);
         }
+        setGroups(Object.values(grouped));
       } catch (err) {
-        console.error('Error loading application or documents:', err);
+        console.error('Failed to load applications:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) fetchApplicationAndDocuments();
-  }, [id]);
+    fetchApplications();
+  }, []);
 
-  const handleUpdate = async (status: 'Approved' | 'Rejected') => {
-    setUpdating(true);
-    try {
-      await fetch(`${API_BASE_URL}/api/applications/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': sessionStorage.getItem('userId') || '',
-        },
-        body: JSON.stringify({ status }),
-      });
-      setApplication((prev) => (prev ? { ...prev, status } : prev));
-    } catch (err) {
-      console.error('Failed to update application:', err);
-      alert('Error updating application');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  if (loading || !application) return <p>Loading application details...</p>;
+  if (loading) return <p>Loading applications...</p>;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Application to: {application.property_title}</h1>
+      <h1 className="text-2xl font-bold">Applications Received</h1>
 
-      <Card>
-        <CardContent className="space-y-2 p-4">
-          <div className="flex justify-between items-center">
-            <p><strong>Applicant:</strong> {application.applicant_name}</p>
-            <Badge variant={
-              application.status === 'Pending'
-                ? 'default'
-                : application.status === 'Approved'
-                ? 'secondary'
-                : 'destructive'
-            }>
-              {application.status}
-            </Badge>
-          </div>
+      {groups.length === 0 ? (
+        <p>No applications received yet.</p>
+      ) : (
+        groups.map((group) => (
+          <div key={group.property_id} className="space-y-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {group.property_title} <span className="text-sm text-muted-foreground">({group.property_type})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {group.applications.map((app) => (
+                  <div key={app.id} className="border rounded p-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p>
+                        <strong>Applicant:</strong> {app.applicant_name}
+                      </p>
+                      <Badge
+                        variant={
+                          app.status === 'Pending'
+                            ? 'default'
+                            : app.status === 'Approved'
+                            ? 'secondary'
+                            : 'destructive'
+                        }
+                      >
+                        {app.status}
+                      </Badge>
+                    </div>
+                    <p><strong>Message:</strong> {app.message || 'N/A'}</p>
 
-          <p><strong>Message:</strong> {application.message || 'N/A'}</p>
+                    {app.bid_amount && (
+                      <p><strong>Bid:</strong> ₹{app.bid_amount.toFixed(2)}</p>
+                    )}
 
-          {application.bid_amount && (
-            <p><strong>Bid Amount:</strong> ₹{application.bid_amount.toFixed(2)}</p>
-          )}
+                    {app.lease_start && app.lease_end && (
+                      <p>
+                        <strong>Lease:</strong> {format(new Date(app.lease_start), 'dd MMM yyyy')} - {format(new Date(app.lease_end), 'dd MMM yyyy')}
+                      </p>
+                    )}
 
-          {application.lease_start && application.lease_end && (
-            <p><strong>Lease Duration:</strong> {format(new Date(application.lease_start), 'dd MMM yyyy')} - {format(new Date(application.lease_end), 'dd MMM yyyy')}</p>
-          )}
+                    {app.subscription_start && app.subscription_end && (
+                      <p>
+                        <strong>Subscription:</strong> {format(new Date(app.subscription_start), 'dd MMM yyyy')} - {format(new Date(app.subscription_end), 'dd MMM yyyy')}
+                      </p>
+                    )}
 
-          {application.subscription_start && application.subscription_end && (
-            <>
-              <p><strong>Subscription:</strong></p>
-              <p><strong>From:</strong> {format(new Date(application.subscription_start), 'dd MMM yyyy')} to {format(new Date(application.subscription_end), 'dd MMM yyyy')}</p>
-            </>
-          )}
-
-          {documents.length > 0 && (
-            <div>
-              <strong>Documents:</strong>
-              <ul className="list-disc ml-5">
-                {documents.map((doc) => (
-                  <li key={doc.id}>
-                    <a
-                      href={doc.document_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/provider/applications/${app.id}`)}
                     >
-                      {doc.document_type} {doc.verified ? '(Verified)' : '(Not Verified)'}
-                    </a>
-                  </li>
+                      <Eye className="h-4 w-4 mr-1" /> View Application
+                    </Button>
+                  </div>
                 ))}
-              </ul>
-            </div>
-          )}
-
-          <p><strong>Submitted on:</strong> {format(new Date(application.created_at), 'dd MMM yyyy')}</p>
-
-          {application.status === 'Pending' && (
-            <div className="flex gap-2 mt-4">
-              <Button
-                onClick={() => handleUpdate('Approved')}
-                disabled={updating}
-              >
-                Approve
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => handleUpdate('Rejected')}
-                disabled={updating}
-              >
-                Reject
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          </div>
+        ))
+      )}
     </div>
   );
 }
