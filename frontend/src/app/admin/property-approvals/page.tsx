@@ -134,11 +134,11 @@ export default function PropertyApprovalsPage() {
 
   const getTransactionTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case "lease":
+      case "Lease":
         return "default"
-      case "sale":
+      case "Sale":
         return "secondary"
-      case "pg":
+      case "PG":
         return "outline"
       default:
         return "outline"
@@ -325,9 +325,9 @@ export default function PropertyApprovalsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Transactions</SelectItem>
-                <SelectItem value="lease">Lease</SelectItem>
-                <SelectItem value="sale">Sale</SelectItem>
-                <SelectItem value="pg">PG</SelectItem>
+                <SelectItem value="Lease">Lease</SelectItem>
+                <SelectItem value="Sale">Sale</SelectItem>
+                <SelectItem value="PG">PG</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>

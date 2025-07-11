@@ -17,7 +17,7 @@ def create_property(
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized: Missing user ID")
 
-    if payload.property.is_negotiable and payload.property.transaction_type not in ["lease", "sale"]:
+    if payload.property.is_negotiable and payload.property.transaction_type not in ["Lease", "Sale"]:
         raise HTTPException(
             status_code=400,
             detail="Only lease and sale properties can be marked as negotiable."
@@ -128,7 +128,7 @@ def delete_property(
     property_data = prop_res.data
 
     if property_data["approval_status"] == "Approved":
-        if property_data["transaction_type"] == "sale" and property_data["status"] == "Sold":
+        if property_data["transaction_type"] == "Sale" and property_data["status"] == "Sold":
             raise HTTPException(status_code=400, detail="Cannot delete a sold property")
 
         # Check leases

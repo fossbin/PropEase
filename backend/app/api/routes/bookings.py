@@ -19,32 +19,31 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
     logger.info(f"Fetching transactions for user_id: {user_id[:8]}...")
 
     try:
-        # Test query to ensure connection
+        # Test DB connection
         try:
             _ = supabase.table("properties").select("id").limit(1).execute()
         except Exception as e:
             logger.error(f"Test query failed: {e}")
-            raise HTTPException(status_code=500, detail="Database connection test failed")
+            raise HTTPException(status_code=500, detail="Database connection failed")
 
-        # Fetch all properties owned by the user
-        properties, page_size, offset = [], 100, 0
+        # Fetch owned properties
+        properties = []
+        page_size, offset = 100, 0
         while True:
-            try:
-                props_resp = (supabase.table("properties")
-                              .select("id,title,type,transaction_type")
-                              .eq("owner_id", user_id)
-                              .range(offset, offset + page_size - 1)
-                              .execute())
-                batch = props_resp.data
-                if not batch:
-                    break
-                properties.extend(batch)
-                if len(batch) < page_size:
-                    break
-                offset += page_size
-            except Exception as e:
-                logger.error(f"Error fetching properties: {e}")
-                raise HTTPException(status_code=500, detail="Failed to fetch properties")
+            props_resp = (
+                supabase.table("properties")
+                .select("id,title,type,transaction_type")
+                .eq("owner_id", user_id)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            batch = props_resp.data
+            if not batch:
+                break
+            properties.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
 
         if not properties:
             return []
@@ -53,35 +52,54 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
         property_ids = list(property_map.keys())
         grouped: Dict[str, Dict[str, Any]] = {}
 
-        def fetch_transactions(table: str, ids: List[str], batch_size: int = 5) -> List[Dict[str, Any]]:
+        def fetch_transactions_with_user(table: str, user_field: str) -> List[Dict[str, Any]]:
             results = []
-            for i in range(0, len(ids), batch_size):
-                batch = ids[i:i + batch_size]
+            for i in range(0, len(property_ids), 5):
+                batch = property_ids[i:i+5]
                 try:
-                    resp = supabase.table(table).select("*").in_("property_id", batch).execute()
-                    results.extend(resp.data or [])
+                    res = (supabase.table(table)
+                        .select(f"*, {user_field} (id, name, email, phone_number)")
+                        .in_("property_id", batch)
+                        .execute())
+                    results.extend(res.data or [])
                 except Exception as e:
-                    logger.warning(f"Batch fetch failed for {table}: {e}")
-                    for pid in batch:
-                        try:
-                            single = supabase.table(table).select("*").eq("property_id", pid).execute()
-                            results.extend(single.data or [])
-                        except Exception as e2:
-                            logger.warning(f"Fallback fetch failed for {table} - {pid}: {e2}")
+                    logger.warning(f"Error fetching {table} batch: {e}")
             return results
 
-        leases = fetch_transactions("leases", property_ids)
-        subscriptions = fetch_transactions("subscriptions", property_ids)
-        sales = fetch_transactions("sales", property_ids)
+        leases = fetch_transactions_with_user("leases", "tenant_id")
+        subscriptions = fetch_transactions_with_user("subscriptions", "user_id")
+        sales = fetch_transactions_with_user("sales", "buyer_id")
 
         def insert_txn(txn: dict, txn_type: str):
             pid = txn["property_id"]
-            grouped.setdefault(pid, {"property": property_map.get(pid), "transactions": []})
-            grouped[pid]["transactions"].append({**txn, "transaction_type": txn_type})
+            grouped.setdefault(pid, {
+                "property": property_map.get(pid),
+                "transactions": []
+            })
 
-        for l in leases: insert_txn(l, "lease")
-        for s in subscriptions: insert_txn(s, "subscription")
-        for s in sales: insert_txn(s, "sale")
+            user_info = None
+            if txn_type == "Lease":
+                user_info = txn.get("tenant_id")
+            elif txn_type == "PG":
+                user_info = txn.get("user_id")
+            elif txn_type == "Sale":
+                user_info = txn.get("buyer_id")
+
+            txn_cleaned = {
+                **txn,
+                "transaction_type": txn_type,
+                "user": user_info
+            }
+            # Remove nested user ID key
+            txn_cleaned.pop("tenant_id", None)
+            txn_cleaned.pop("user_id", None)
+            txn_cleaned.pop("buyer_id", None)
+
+            grouped[pid]["transactions"].append(txn_cleaned)
+
+        for l in leases: insert_txn(l, "Lease")
+        for s in subscriptions: insert_txn(s, "PG")
+        for s in sales: insert_txn(s, "Sale")
 
         def latest_date(txns):
             date_fields = ["last_paid_month", "payment_due_date", "sale_date", "created_at"]
@@ -102,7 +120,7 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
         sorted_grouped = sorted(
             grouped.values(),
             key=lambda g: (
-                g["property"]["type"] if g["property"] else "",
+                g["property"]["transaction_type"] if g["property"] else "",
                 latest_date(g["transactions"])
             ),
             reverse=True
@@ -114,20 +132,38 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in get_all_transactions: {e}")
+        logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{transaction_id}")
 async def get_transaction_detail(transaction_id: UUID):
     supabase = get_supabase_client()
-    for table in ["leases", "subscriptions", "sales"]:
+
+    lookup_tables = [
+        ("leases", "tenant_id"),
+        ("subscriptions", "user_id"),
+        ("sales", "buyer_id")
+    ]
+
+    for table, user_field in lookup_tables:
         try:
-            res = supabase.table(table).select("*").eq("id", str(transaction_id)).execute()
+            res = (supabase.table(table)
+                   .select(f"*, {user_field} (id, name, email, phone_number)")
+                   .eq("id", str(transaction_id))
+                   .execute())
             if res.data:
-                return {**res.data[0], "transaction_type": table[:-1]}
+                txn = res.data[0]
+                user = txn.get(user_field)
+                txn.pop(user_field, None)
+                return {
+                    **txn,
+                    "transaction_type": table[:-1],
+                    "user": user
+                }
         except Exception as e:
             logger.warning(f"Error checking {table} for transaction {transaction_id}: {e}")
+
     raise HTTPException(status_code=404, detail="Transaction not found")
 
 

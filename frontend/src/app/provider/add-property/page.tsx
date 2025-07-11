@@ -280,9 +280,9 @@ export default function AddPropertyPage() {
                     className="w-full mt-1 p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select Transaction Type</option>
-                    <option value="sale">Sale</option>
-                    <option value="lease">Lease</option>
-                    <option value="pg">PG</option>
+                    <option value="Sale">Sale</option>
+                    <option value="Lease">Lease</option>
+                    <option value="PG">PG</option>
                   </select>
                 </div>
               </div>

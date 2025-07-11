@@ -11,7 +11,6 @@ from app.models.maintenance_tickets import (
 
 router = APIRouter(prefix="/maintenance", tags=["Maintenance"])
 
-
 @router.post("/", response_model=MaintenanceTicketResponse)
 def create_maintenance_ticket(
     request: Request,
@@ -22,7 +21,6 @@ def create_maintenance_ticket(
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Check if the user has an active lease or subscription
     lease_check = supabase.table("leases") \
         .select("id") \
         .eq("property_id", ticket_data.property_id) \

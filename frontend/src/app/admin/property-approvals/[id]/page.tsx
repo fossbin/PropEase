@@ -227,11 +227,11 @@ export default function PropertyDetailPage() {
 
   const getTransactionTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case "lease":
+      case "Lease":
         return "default"
-      case "sale":
+      case "Sale":
         return "secondary"
-      case "pg":
+      case "PG":
         return "outline"
       default:
         return "outline"

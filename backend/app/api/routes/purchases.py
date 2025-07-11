@@ -11,12 +11,14 @@ def get_user_purchases(user=Depends(get_current_user), supabase=Depends(get_supa
     user_id = user["id"]
     purchases = []
 
+    # Active Leases
     lease_resp = (
         supabase.table("leases")
         .select("*, properties(title, type)")
         .eq("tenant_id", user_id)
         .execute()
     )
+
     for lease in lease_resp.data or []:
         purchases.append({
             "id": lease["id"],
@@ -27,16 +29,17 @@ def get_user_purchases(user=Depends(get_current_user), supabase=Depends(get_supa
             "start_date": lease["start_date"],
             "end_date": lease["end_date"],
             "price": float(lease["rent"]),
-            "is_active": lease["terminated_at"] is None
+            "is_active": lease.get("terminated_at") is None
         })
 
-    # Subscriptions
+    # Active Subscriptions (PGs)
     sub_resp = (
         supabase.table("subscriptions")
         .select("*, properties(title, type)")
         .eq("user_id", user_id)
         .execute()
     )
+
     for sub in sub_resp.data or []:
         purchases.append({
             "id": sub["id"],
@@ -50,13 +53,14 @@ def get_user_purchases(user=Depends(get_current_user), supabase=Depends(get_supa
             "is_active": sub.get("is_active", True) and sub.get("terminated_at") is None
         })
 
-    # Sales (purchased properties)
+    # Sales
     sale_resp = (
         supabase.table("sales")
         .select("*, properties(title, type)")
         .eq("buyer_id", user_id)
         .execute()
     )
+
     for sale in sale_resp.data or []:
         purchases.append({
             "id": sale["id"],
@@ -64,12 +68,14 @@ def get_user_purchases(user=Depends(get_current_user), supabase=Depends(get_supa
             "title": sale["properties"]["title"],
             "type": sale["properties"]["type"],
             "rental_type": "Sale",
-            "price": float(sale["sale_price"]),
             "start_date": sale["sale_date"],
             "end_date": None,
+            "price": float(sale["sale_price"]),
+            "is_active": True  # Always true for sales (owned)
         })
 
     return purchases
+
 
 @router.delete("/{rental_id}")
 def cancel_purchase(rental_id: UUID, user=Depends(get_current_user), supabase=Depends(get_supabase_client)):
@@ -83,6 +89,7 @@ def cancel_purchase(rental_id: UUID, user=Depends(get_current_user), supabase=De
             .eq(user_col, user_id)
             .execute()
         )
+
         if res.data:
             update_data = {
                 "terminated_at": datetime.utcnow().isoformat(),
@@ -91,12 +98,7 @@ def cancel_purchase(rental_id: UUID, user=Depends(get_current_user), supabase=De
             if table == "subscriptions":
                 update_data["is_active"] = False
 
-            update = (
-                supabase.table(table)
-                .update(update_data)
-                .eq("id", str(rental_id))
-                .execute()
-            )
+            supabase.table(table).update(update_data).eq("id", str(rental_id)).execute()
             return {"message": f"{table[:-1].capitalize()} cancelled successfully"}
 
     raise HTTPException(status_code=404, detail="Rental not found or not cancelable")

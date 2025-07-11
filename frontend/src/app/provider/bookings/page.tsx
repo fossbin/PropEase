@@ -5,6 +5,48 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone_number?: string;
+}
+
+type LeaseTransaction = {
+  id: string;
+  property_id: string;
+  rent: string;
+  start_date: string;
+  end_date: string;
+  last_paid_month: string;
+  payment_status: string;
+  transaction_type: 'Lease';
+  user: User;
+};
+
+type SubscriptionTransaction = {
+  id: string;
+  property_id: string;
+  rent: string;
+  start_date: string;
+  end_date: string;
+  last_paid_period: string;
+  payment_status: string;
+  transaction_type: 'PG';
+  user: User;
+};
+
+type SaleTransaction = {
+  id: string;
+  property_id: string;
+  sale_price: string;
+  sale_date: string;
+  transaction_type: 'Sale';
+  user: User;
+};
+
+type Transaction = LeaseTransaction | SubscriptionTransaction | SaleTransaction;
+
 interface TransactionGroup {
   property: {
     id: string;
@@ -13,45 +55,8 @@ interface TransactionGroup {
     transaction_type: string;
     status: string;
   };
-  transactions: Array<
-    | (Lease & { user: User })
-    | (Subscription & { user: User })
-    | (Sale & { user: User })
-  >;
+  transactions: Transaction[];
   latestDate: string;
-}
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface Lease {
-  id: string;
-  tenant_id: string;
-  rent: string;
-  start_date: string;
-  end_date: string;
-  last_paid_month: string;
-  payment_status: string;
-}
-
-interface Subscription {
-  id: string;
-  user_id: string;
-  rent: string;
-  start_date: string;
-  end_date: string;
-  last_paid_period: string;
-  payment_status: string;
-}
-
-interface Sale {
-  id: string;
-  buyer_id: string;
-  sale_price: string;
-  sale_date: string;
 }
 
 export default function ProviderTransactionsPage() {
@@ -61,19 +66,13 @@ export default function ProviderTransactionsPage() {
 
   useEffect(() => {
     const fetchTransactions = async () => {
-      const userId = sessionStorage.getItem('userId');
       try {
-        const res = await fetch(`${API_BASE_URL}/api/provider/transactions`, {
-          headers: {
-            'X-User-Id': userId || '',
-          },
-        });
-
+        const res = await fetch(`${API_BASE_URL}/api/provider/transactions`);
         const result = await res.json();
 
         if (Array.isArray(result)) {
           const sorted = result
-            .map((group) => ({
+            .map((group: Omit<TransactionGroup, 'latestDate'>) => ({
               ...group,
               latestDate: getLatestDate(group.transactions),
             }))
@@ -96,11 +95,16 @@ export default function ProviderTransactionsPage() {
     fetchTransactions();
   }, []);
 
-  const getLatestDate = (transactions: any[]) => {
-    const dates = transactions.map((t) =>
-      t.last_paid_month || t.last_paid_period || t.payment_due_date || t.sale_date
-    );
-    return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  const getLatestDate = (transactions: Transaction[]): string => {
+    const dates = transactions.map((txn) => {
+      if (txn.transaction_type === 'Sale') return txn.sale_date;
+      if (txn.transaction_type === 'Lease') return txn.last_paid_month;
+      if (txn.transaction_type === 'PG') return txn.last_paid_period;
+      return txn['created_at'];
+    });
+    return dates
+      .filter(Boolean)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   };
 
   if (loading) return <p>Loading bookings...</p>;
@@ -114,20 +118,19 @@ export default function ProviderTransactionsPage() {
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-semibold">{group.property.title}</h3>
-                <p className="text-sm text-gray-600">Type: {group.property.type}</p>
+                <p className="text-sm text-muted-foreground">Type: {group.property.type}</p>
               </div>
               <Badge variant="outline">{group.property.transaction_type}</Badge>
             </div>
 
-            {group.transactions.map((txn: any) => {
-              const user = txn.user;
+            {group.transactions.map((txn) => {
               return (
                 <div key={txn.id} className="p-3 border rounded space-y-1">
                   <p className="font-medium">
-                    {user.name} ({user.email})
+                    {txn.user.name} ({txn.user.email})
                   </p>
 
-                  {'sale_price' in txn ? (
+                  {txn.transaction_type === 'Sale' ? (
                     <>
                       <p>Sale Price: ₹{txn.sale_price}</p>
                       <p>Sale Date: {format(new Date(txn.sale_date), 'dd MMM yyyy')}</p>
@@ -136,13 +139,18 @@ export default function ProviderTransactionsPage() {
                     <>
                       <p>Rent: ₹{txn.rent}</p>
                       <p>
-                        Duration: {format(new Date(txn.start_date), 'MMM yyyy')} –{' '}
+                        Duration:{' '}
+                        {format(new Date(txn.start_date), 'MMM yyyy')} –{' '}
                         {format(new Date(txn.end_date), 'MMM yyyy')}
                       </p>
                       <p>
                         Last Paid:{' '}
                         {format(
-                          new Date(txn.last_paid_month || txn.last_paid_period),
+                          new Date(
+                            txn.transaction_type === 'Lease'
+                              ? txn.last_paid_month
+                              : txn.last_paid_period
+                          ),
                           'MMM yyyy'
                         )}
                       </p>

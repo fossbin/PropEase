@@ -192,11 +192,11 @@ export default function ApplyPropertyPage() {
 
   const getPropertyTypeIcon = (type: string) => {
     switch (type) {
-      case "lease":
+      case "Lease":
         return <Home className="h-5 w-5" />
-      case "pg":
+      case "PG":
         return <Building className="h-5 w-5" />
-      case "sale":
+      case "Sale":
         return <MapPin className="h-5 w-5" />
       default:
         return <Home className="h-5 w-5" />
@@ -205,11 +205,11 @@ export default function ApplyPropertyPage() {
 
   const getPropertyTypeColor = (type: string) => {
     switch (type) {
-      case "lease":
+      case "Lease":
         return "default"
-      case "pg":
+      case "PG":
         return "secondary"
-      case "sale":
+      case "Sale":
         return "outline"
       default:
         return "outline"
@@ -233,9 +233,9 @@ export default function ApplyPropertyPage() {
     })
   }
 
-  const isLease = property?.transaction_type === "lease"
-  const isSale = property?.transaction_type === "sale"
-  const isPG = property?.transaction_type === "pg"
+  const isLease = property?.transaction_type === "Lease"
+  const isSale = property?.transaction_type === "Sale"
+  const isPG = property?.transaction_type === "PG"
   const verifiedDocs = userDocuments.filter((doc) => doc.verified).length
   const totalDocs = userDocuments.length
 

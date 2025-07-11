@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
 const propertyTypes = ['Apartment', 'PG', 'Land', 'Villa'];
-const transactionTypes = ['Sale', 'Lease', 'Subscription'];
+const transactionTypes = ['Sale', 'Lease', 'PG'];
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 

@@ -22,7 +22,6 @@ class SaleCreate(BaseModel):
     sale_date: date = Field(default_factory=date.today)
     deed_file: str
 
-# Pydantic model for response
 class Sale(SaleCreate):
     id: UUID
     created_at: date

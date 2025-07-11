@@ -108,7 +108,7 @@ export default function MyPropertiesPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {properties.map((property) => {
             const isSoldSale =
-              property.transaction_type.toLowerCase() === 'sale' &&
+              property.transaction_type.toLowerCase() === 'Sale' &&
               property.status.toLowerCase() === 'sold';
 
             const canDelete =

@@ -24,7 +24,7 @@ import {
 interface ReviewableProperty {
   property_id: string
   title: string
-  transaction_type: "lease" | "subscription"
+  transaction_type: "Lease" | "PG"
   rating?: number
   comment?: string
   property_type?: string
@@ -53,7 +53,7 @@ export default function SeekerReviewsPage() {
         })
         const data = await res.json()
         if (Array.isArray(data)) {
-          const filtered = data.filter((p) => ["lease", "subscription"].includes(p.transaction_type))
+          const filtered = data.filter((p) => ["Lease", "PG"].includes(p.transaction_type))
           setProperties(filtered)
 
           // Initialize review state
@@ -141,9 +141,9 @@ export default function SeekerReviewsPage() {
 
   const getTransactionTypeIcon = (type: string) => {
     switch (type) {
-      case "lease":
+      case "Lease":
         return <Home className="h-4 w-4" />
-      case "subscription":
+      case "PG":
         return <Building className="h-4 w-4" />
       default:
         return <Building className="h-4 w-4" />
@@ -152,9 +152,9 @@ export default function SeekerReviewsPage() {
 
   const getTransactionTypeLabel = (type: string) => {
     switch (type) {
-      case "lease":
+      case "Lease":
         return "Lease"
-      case "subscription":
+      case "PG":
         return "PG Subscription"
       default:
         return type

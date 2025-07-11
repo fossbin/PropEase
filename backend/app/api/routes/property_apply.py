@@ -16,7 +16,6 @@ async def submit_application(
 ):
     user_id = Depends(get_current_user)
 
-    # 2. Upload the file if present
     document_url = None
     if documents:
         contents = await documents.read()
@@ -29,7 +28,6 @@ async def submit_application(
 
         document_url = supabase.storage.from_("documents").get_public_url(file_path)
 
-    # 3. Insert application
     application_payload = {
         "id": str(uuid4()),
         "seeker_id": user_id,

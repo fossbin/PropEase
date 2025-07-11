@@ -280,10 +280,10 @@ export default function PropertyDetails() {
                     <Bed className="w-6 h-6 mx-auto mb-2 text-primary" />
                     <p className="text-sm text-muted-foreground">Occupancy</p>
                     <p className="font-semibold">
-                      {transaction_type == "lease" || transaction_type == "sale" ? "N/A" : occupancy / capacity}
+                      {transaction_type == "Lease" || transaction_type == "Sale" ? "N/A" : occupancy / capacity}
                     </p>
                   </div>
-                  {transaction_type !== "sale"? <>
+                  {transaction_type !== "Sale"? <>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Star className="w-6 h-6 mx-auto mb-2 text-primary" />
                     <p className="text-sm text-muted-foreground">Rating</p>
@@ -339,7 +339,7 @@ export default function PropertyDetails() {
             )}
 
             {/* Reviews */}
-            {transaction_type !== "sale" && (
+            {transaction_type !== "Sale" && (
               reviews.length > 0 ? (
                 <Card>
                   <CardHeader>
@@ -465,9 +465,9 @@ export default function PropertyDetails() {
                     </div>
                     {is_negotiable && <p className="text-sm text-muted-foreground">Negotiable</p>}
                     <p className="text-sm text-muted-foreground">
-                      {transaction_type === "sale"
+                      {transaction_type === "Sale"
                         ? "Total Price"
-                        : transaction_type === "lease"
+                        : transaction_type === "Lease"
                           ? "Per Month"
                           : "Per Month"}
                     </p>

@@ -150,7 +150,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
         owner_id = property_data["owner_id"]
         price = app.get("bid_amount") or property_data.get("price")
 
-        if prop_type == "lease" and app.get("lease_start") and app.get("lease_end"):
+        if prop_type == "Lease" and app.get("lease_start") and app.get("lease_end"):
             lease_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],
@@ -167,7 +167,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             }
             supabase.table("leases").insert(lease_payload).execute()
 
-        elif prop_type == "sale":
+        elif prop_type == "Sale":
             account_res = supabase.table("accounts").select("balance").eq("user_id", app["applicant_id"]).single().execute()
             if not account_res.data:
                 raise HTTPException(status_code=400, detail="Applicant has no associated account")
@@ -186,7 +186,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             }
             supabase.table("sales").insert(sale_payload).execute()
 
-        elif prop_type == "pg" and app.get("subscription_start") and app.get("subscription_end"):
+        elif prop_type == "PG" and app.get("subscription_start") and app.get("subscription_end"):
             sub_payload = {
                 "id": str(uuid4()),
                 "property_id": app["property_id"],

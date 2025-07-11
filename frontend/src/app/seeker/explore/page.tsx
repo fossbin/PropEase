@@ -138,7 +138,7 @@ export default function ExplorePage() {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; color: string }> = {
       Sale: { variant: "default", color: "bg-green-100 text-green-800" },
       Lease: { variant: "secondary", color: "bg-blue-100 text-blue-800" },
-      Subscription: { variant: "outline", color: "bg-purple-100 text-purple-800" },
+      PG: { variant: "outline", color: "bg-purple-100 text-purple-800" },
     }
     const config = variants[type] || { variant: "outline", color: "" }
     return (
@@ -375,7 +375,7 @@ export default function ExplorePage() {
                 <SelectContent>
                   <SelectItem value="Lease">Lease</SelectItem>
                   <SelectItem value="Sale">Sale</SelectItem>
-                  <SelectItem value="Subscription">Subscription</SelectItem>
+                  <SelectItem value="PG">Subscription</SelectItem>
                 </SelectContent>
               </Select>
 

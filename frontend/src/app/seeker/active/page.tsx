@@ -42,7 +42,7 @@ interface PurchaseItem {
   property_id: string
   title: string
   type: string
-  rental_type: "Lease" | "Subscription" | "Sale"
+  rental_type: "Lease" | "PG" | "Sale"
   start_date?: string
   end_date?: string 
   price: number
@@ -85,7 +85,7 @@ export default function MyPurchasesPage() {
     fetchPurchases()
   }, [])
 
-  const handleCancel = async (id: string, type: "Lease" | "Subscription") => {
+  const handleCancel = async (id: string, type: "Lease" | "PG") => {
     setCancelling(id)
     setCancelStatus({ ...cancelStatus, [id]: null })
 
@@ -111,7 +111,7 @@ export default function MyPurchasesPage() {
     switch (type) {
       case "Lease":
         return <Home className="h-4 w-4" />
-      case "Subscription":
+      case "PG":
         return <Building className="h-4 w-4" />
       case "Sale":
         return <CreditCard className="h-4 w-4" />
@@ -124,7 +124,7 @@ export default function MyPurchasesPage() {
     switch (type) {
       case "Lease":
         return "default"
-      case "Subscription":
+      case "PG":
         return "secondary"
       case "Sale":
         return "outline"
@@ -189,7 +189,6 @@ export default function MyPurchasesPage() {
     return matchesSearch && matchesType && matchesStatus
   })
 
-  // Statistics
   const totalPurchases = purchases.length
   const activePurchases = purchases.filter((p) => p.is_active || p.rental_type === "Sale").length
   const totalSpent = purchases.reduce((sum, p) => sum + p.price, 0)
@@ -282,9 +281,9 @@ export default function MyPurchasesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="lease">Lease</SelectItem>
-                <SelectItem value="subscription">Subscription</SelectItem>
-                <SelectItem value="sale">Sale</SelectItem>
+                <SelectItem value="Lease">Lease</SelectItem>
+                <SelectItem value="PG">PG</SelectItem>
+                <SelectItem value="Sale">Sale</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -453,7 +452,7 @@ export default function MyPurchasesPage() {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Keep {item.rental_type}</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handleCancel(item.id, item.rental_type as "Lease" | "Subscription")}
+                              onClick={() => handleCancel(item.id, item.rental_type as "Lease" | "PG")}
                               className="bg-red-600 hover:bg-red-700"
                             >
                               Cancel {item.rental_type}

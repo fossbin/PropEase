@@ -26,9 +26,6 @@ class SubscriptionOut(SubscriptionBase):
     id: UUID
     created_at: date
 
-# ------------------------
-# Routes for Subscriptions
-# ------------------------
 @router.post("/subscriptions/", response_model=SubscriptionOut)
 def create_subscription(subscription: SubscriptionCreate):
     response = supabase.table("subscriptions").insert(subscription.dict()).execute()
