@@ -15,6 +15,7 @@ def get_all_properties(
     
     if user["email"] not in settings.ADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Only admins can access this route.")
+
     result = supabase.table("properties").select(
         """
         id,
@@ -61,18 +62,25 @@ def get_property_details(
     if not property_result.data:
         raise HTTPException(status_code=404, detail="Property not found.")
     
-    location_result = supabase.table("property_locations").select("*").eq("property_id", str(property_id)).single().execute()
-    location_data = location_result.data if location_result.data else {}
+    location_result = supabase.table("property_locations") \
+        .select("*") \
+        .eq("property_id", str(property_id)) \
+        .single().execute()
     
+    document_result = supabase.table("property_documents") \
+        .select("id, file_name, document_url, document_type, verified") \
+        .eq("property_id", str(property_id)).execute()
+
     property_data = property_result.data
     owner_data = property_data.pop("users", {})
-    
+
     full_data = {
         **property_data,
-        "location": location_data,
-        "owner": owner_data
+        "location": location_result.data if location_result.data else {},
+        "owner": owner_data,
+        "documents": document_result.data if document_result.data else []
     }
-    
+
     return full_data
 
 @router.post("/properties/{property_id}/approve")
@@ -119,7 +127,7 @@ def verify_property(
     property_id: UUID,
     user=Depends(get_current_user),
     supabase: Client = Depends(get_supabase)):
-    
+
     if user["email"] not in settings.ADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Admins only.")
     
@@ -137,7 +145,7 @@ def unverify_property(
     property_id: UUID,
     user=Depends(get_current_user),
     supabase: Client = Depends(get_supabase)):
-    
+
     if user["email"] not in settings.ADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Admins only.")
     
@@ -155,7 +163,7 @@ def disable_property(
     property_id: UUID,
     user=Depends(get_current_user),
     supabase: Client = Depends(get_supabase)):
-    
+
     if user["email"] not in settings.ADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Admins only.")
     
@@ -173,7 +181,7 @@ def enable_property(
     property_id: UUID,
     user=Depends(get_current_user),
     supabase: Client = Depends(get_supabase)):
-    
+
     if user["email"] not in settings.ADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Admins only.")
 
@@ -181,6 +189,8 @@ def enable_property(
         "approval_status": "Approved",
         "status": "Available"
     }).eq("id", str(property_id)).execute()
+
     if not result.data:
         raise HTTPException(status_code=404, detail="Property not found.")
+
     return {"message": "Property enabled. User can now edit this property."}

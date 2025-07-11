@@ -37,6 +37,14 @@ import {
   ShieldCheck,
 } from "lucide-react"
 
+interface PropertyDocument {
+  id: string
+  file_name: string
+  document_url: string
+  document_type: string
+  verified: boolean
+}
+
 interface PropertyDetail {
   id: string
   owner_id: string
@@ -55,7 +63,7 @@ interface PropertyDetail {
   verified: boolean
   rating: number | null
   photos: string[]
-  documents: { name: string; path: string }[]
+  documents: PropertyDocument[]
   location: {
     address_line: string
     city: string
@@ -227,11 +235,11 @@ export default function PropertyDetailPage() {
 
   const getTransactionTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case "Lease":
+      case "lease":
         return "default"
-      case "Sale":
+      case "sale":
         return "secondary"
-      case "PG":
+      case "pg":
         return "outline"
       default:
         return "outline"
@@ -268,8 +276,8 @@ export default function PropertyDetailPage() {
     return data.publicUrl
   }
 
-  const getPropertyDocumentUrl = (documentPath: string) => {
-    const { data } = supabase.storage.from("property-files").getPublicUrl(documentPath)
+  const getPropertyDocumentUrl = (documentUrl: string) => {
+    const { data } = supabase.storage.from("property-files").getPublicUrl(documentUrl)
     return data.publicUrl
   }
 
@@ -309,6 +317,10 @@ export default function PropertyDetailPage() {
     return ownerDocuments.filter((doc) => doc.verified).length
   }
 
+  const getVerifiedPropertyDocumentsCount = () => {
+    return property?.documents?.filter((doc) => doc.verified).length || 0
+  }
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -333,6 +345,7 @@ export default function PropertyDetailPage() {
 
   const ownerPictureUrl = getOwnerPictureUrl(property.owner?.picture)
   const verifiedDocsCount = getVerifiedDocumentsCount()
+  const verifiedPropertyDocsCount = getVerifiedPropertyDocumentsCount()
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
@@ -594,21 +607,44 @@ export default function PropertyDetailPage() {
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Property Documents ({property.documents.length})
+                  {verifiedPropertyDocsCount > 0 && (
+                    <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                      <Shield className="h-2 w-2 mr-1" />
+                      {verifiedPropertyDocsCount} Verified
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {property.documents.map((doc, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                  {property.documents.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{doc.name}</span>
+                        <div>
+                          <span className="font-medium">{doc.file_name}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {doc.document_type}
+                            </Badge>
+                            {doc.verified ? (
+                              <Badge variant="outline" className="text-green-600 border-green-600 text-xs">
+                                <Shield className="h-2 w-2 mr-1" />
+                                Verified
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-600 border-amber-600 text-xs">
+                                Pending Verification
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.open(getPropertyDocumentUrl(doc.path), "_blank")}
+                          onClick={() => window.open(getPropertyDocumentUrl(doc.document_url), "_blank")}
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
                           View
@@ -618,8 +654,8 @@ export default function PropertyDetailPage() {
                           variant="outline"
                           onClick={() => {
                             const link = document.createElement("a")
-                            link.href = getPropertyDocumentUrl(doc.path)
-                            link.download = doc.name
+                            link.href = getPropertyDocumentUrl(doc.document_url)
+                            link.download = doc.file_name
                             link.click()
                           }}
                         >
@@ -731,7 +767,7 @@ export default function PropertyDetailPage() {
                   </>
                 )}
               </Button>
-
+              
               {/* Approval Actions - Only for Pending properties */}
               {property.approval_status === "Pending" && (
                 <>

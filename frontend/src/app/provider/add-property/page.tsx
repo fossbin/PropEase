@@ -34,7 +34,7 @@ export default function AddPropertyPage() {
     price: "",
     capacity: "",
     photos: [] as string[],
-    documents: [] as { name: string; path: string }[],
+    documents: [] as { document_type: string; document_url: string; file_name: string }[],
     location: {
       address_line: "",
       city: "",
@@ -57,12 +57,11 @@ export default function AddPropertyPage() {
       formData.location.latitude,
       formData.location.longitude,
       formData.photos.length > 0 ? formData.photos[0] : "", 
-      formData.documents.length > 0 ? formData.documents[0].path : "",
+      formData.documents.length > 0 ? formData.documents[0].document_url : "", // Changed from .path to .document_url
     ]
     const filledFields = requiredFields.filter((field) => field && field.toString().trim() !== "").length
     return Math.round((filledFields / requiredFields.length) * 100)
   }
-
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
@@ -132,7 +131,7 @@ export default function AddPropertyPage() {
     if (!files || files.length === 0 || !userID) return
 
     setUploadingDocs(true)
-    const newDocs: { name: string; path: string }[] = []
+    const newDocs: { document_type: string; document_url: string; file_name: string }[] = []
 
     for (let i = 0; i < Math.min(files.length, 2); i++) {
       const file = files[i]
@@ -144,7 +143,25 @@ export default function AddPropertyPage() {
         continue
       }
 
-      newDocs.push({ name: file.name, path: filePath })
+      // Get the document type based on file extension or default to "Other"
+      const getDocumentType = (fileName: string): string => {
+        const extension = fileName.split('.').pop()?.toLowerCase()
+        switch (extension) {
+          case 'pdf':
+            return 'PDF'
+          case 'doc':
+          case 'docx':
+            return 'Document'
+          default:
+            return 'Other'
+        }
+      }
+
+      newDocs.push({ 
+        document_type: getDocumentType(file.name),
+        document_url: filePath,
+        file_name: file.name
+      })
     }
 
     setFormData((prev) => ({
@@ -581,7 +598,7 @@ export default function AddPropertyPage() {
                       <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-slate-500" />
-                          <span className="text-sm text-slate-700">{doc.name}</span>
+                          <span className="text-sm text-slate-700">{doc.file_name}</span> {/* Changed from doc.name to doc.file_name */}
                         </div>
                         <button
                           type="button"
