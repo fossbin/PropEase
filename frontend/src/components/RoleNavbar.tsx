@@ -58,13 +58,15 @@ export default function Navbar() {
   ]
 
   const seekerLinks = [
-    { label: "Dashboard", href: "/seeker", icon: Home },
-    { label: "Explore", href: "/seeker/explore", icon: Search },
-    { label: "Applications", href: "/seeker/applications", icon: FileText },
-    { label: "My Purchases", href: "/seeker/active", icon: Inbox },
-    { label: "Maintenance", href: "/seeker/maintenance", icon: Wrench },
-    { label: "Reviews", href: "/seeker/reviews", icon: Star },
-  ]
+  // { label: "Dashboard", href: "/seeker", icon: Home },
+  { label: "Explore", href: "/seeker/explore", icon: Search },
+  { label: "Applications", href: "/seeker/applications", icon: FileText },
+  { label: "My Purchases", href: "/seeker/purchases", icon: Inbox },
+  { label: "Payments", href: "/seeker/payments", icon: DollarSign }, 
+  { label: "Maintenance", href: "/seeker/maintenance", icon: Wrench },
+  { label: "Reviews", href: "/seeker/reviews", icon: Star },
+]
+
 
   const mainLinks = role === "provider" ? providerLinks : role === "seeker" ? seekerLinks : []
 
