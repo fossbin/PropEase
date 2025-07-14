@@ -26,7 +26,7 @@ interface PropertyDetails {
 interface Application {
   id: string;
   status: string;
-  message: string;
+  message?: string;
   bid_amount?: number;
   lease_start?: string;
   lease_end?: string;
@@ -77,7 +77,6 @@ export default function ApplicationDetailPage() {
     if (id) fetchApplication();
   }, [id]);
 
-
   const handleUpdate = async (status: 'Approved' | 'Rejected') => {
     setUpdating(true);
     try {
@@ -118,7 +117,7 @@ export default function ApplicationDetailPage() {
       )}
 
       <Card>
-        <CardContent className="space-y-3 p-4">
+        <CardContent className="space-y-4 p-4">
           <div className="flex justify-between items-center">
             <p><strong>Applicant:</strong> {application.applicant_name}</p>
             <Badge variant={
@@ -142,7 +141,7 @@ export default function ApplicationDetailPage() {
 
           <p><strong>Message:</strong> {application.message || 'N/A'}</p>
 
-          {application.bid_amount && (
+          {application.bid_amount !== undefined && (
             <p><strong>Bid Amount:</strong> ₹{application.bid_amount.toFixed(2)}</p>
           )}
 
@@ -156,7 +155,7 @@ export default function ApplicationDetailPage() {
 
           {application.subscription_start && application.subscription_end && (
             <>
-              <p><strong>Subscription</strong></p>
+              <p><strong>Subscription Period:</strong></p>
               <p>
                 <strong>From:</strong>{' '}
                 {format(new Date(application.subscription_start), 'dd MMM yyyy')} to{' '}
@@ -168,7 +167,7 @@ export default function ApplicationDetailPage() {
           {userDocuments.length > 0 && (
             <div>
               <strong>User Documents:</strong>
-              <ul className="list-disc ml-5">
+              <ul className="list-disc ml-5 space-y-1">
                 {userDocuments.map((doc) => (
                   <li key={doc.id}>
                     <a

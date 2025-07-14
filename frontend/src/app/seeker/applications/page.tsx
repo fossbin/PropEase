@@ -68,12 +68,37 @@ export default function ApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [withdrawing, setWithdrawing] = useState<string | null>(null)
-  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
 
   const searchParams = useSearchParams()
   const showSuccess = searchParams.get("success") === "true"
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+  const loadApplications = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/applications/sent`, {
+        headers: {
+          "X-User-Id": sessionStorage.getItem("userId") || "",
+          "Content-Type": "application/json",
+        },
+      })
+      const result = await res.json()
+      if (Array.isArray(result)) {
+        setApplications(result)
+      } else if (Array.isArray(result.data)) {
+        setApplications(result.data)
+      } else {
+        console.error("Unexpected response format:", result)
+        setApplications([])
+      }
+    } catch (err) {
+      console.error("Failed to fetch applications:", err)
+      setApplications([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     const fetchApplications = async () => {
@@ -94,6 +119,7 @@ export default function ApplicationsPage() {
           console.error("Unexpected response format:", result)
           setApplications([])
         }
+        await loadApplications()
       } catch (err) {
         console.error("Failed to fetch applications:", err)
         setApplications([])
@@ -108,20 +134,27 @@ export default function ApplicationsPage() {
   const handleWithdraw = async (applicationId: string) => {
     setWithdrawing(applicationId)
     try {
-      await fetch(`${API_BASE_URL}/api/applications/${applicationId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/applications/${applicationId}`, {
         method: "DELETE",
         headers: {
           "X-User-Id": sessionStorage.getItem("userId") || "",
           "Content-Type": "application/json",
         },
       })
-      setApplications((prev) => prev.filter((app) => app.id !== applicationId))
+
+      if (!res.ok) {
+        throw new Error("Failed to withdraw")
+      }
+
+      // Refresh list after successful deletion
+      await loadApplications()
     } catch (err) {
       console.error("Failed to withdraw application:", err)
     } finally {
       setWithdrawing(null)
     }
   }
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {

@@ -125,7 +125,7 @@ export default function ApplyPropertyPage() {
       errors.message = "Message should be at least 10 characters"
     }
 
-    if (property?.transaction_type === "lease") {
+    if (property?.transaction_type === "Lease") {
       if (!leaseStart) errors.leaseStart = "Lease start date is required"
       if (!leaseEnd) errors.leaseEnd = "Lease end date is required"
       if (leaseStart && leaseEnd && new Date(leaseStart) >= new Date(leaseEnd)) {
@@ -133,7 +133,7 @@ export default function ApplyPropertyPage() {
       }
     }
 
-    if (property?.transaction_type === "pg") {
+    if (property?.transaction_type === "PG") {
       if (!subscriptionStart) errors.subscriptionStart = "Subscription start date is required"
       if (!subscriptionEnd) errors.subscriptionEnd = "Subscription end date is required"
       if (subscriptionStart && subscriptionEnd && new Date(subscriptionStart) >= new Date(subscriptionEnd)) {
@@ -157,15 +157,16 @@ export default function ApplyPropertyPage() {
 
     if (bidAmount) formData.append("bid_amount", bidAmount)
 
-    if (property?.transaction_type === "lease") {
-      formData.append("lease_start", leaseStart)
-      formData.append("lease_end", leaseEnd)
+    if (property?.transaction_type === "Lease") {
+      formData.append("lease_start", new Date(leaseStart).toISOString().split("T")[0])
+      formData.append("lease_end", new Date(leaseEnd).toISOString().split("T")[0])
     }
 
-    if (property?.transaction_type === "pg") {
-      formData.append("subscription_start", subscriptionStart)
-      formData.append("subscription_end", subscriptionEnd)
+    if (property?.transaction_type === "PG") {
+      formData.append("subscription_start", new Date(subscriptionStart).toISOString().split("T")[0])
+      formData.append("subscription_end", new Date(subscriptionEnd).toISOString().split("T")[0])
     }
+
 
     setSubmitting(true)
     try {

@@ -474,9 +474,9 @@ export default function PropertyDetails() {
                   </div>
 
                   <Button size="lg" className="w-full" onClick={() => router.push(`/seeker/apply/${property.id}`)}>
-                    {transaction_type === "sale"
+                    {transaction_type === "Sale"
                       ? "Buy Now"
-                      : transaction_type === "lease"
+                      : transaction_type === "Lease"
                         ? "Rent this Property"
                         : "Subscribe to this PG"}
                   </Button>

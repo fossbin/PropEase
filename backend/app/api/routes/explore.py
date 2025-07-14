@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 from supabase import Client
 from app.db.supabase import get_supabase_client as get_supabase
+from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/seeker", tags=["Seeker Explore"])
 
@@ -11,8 +12,11 @@ def explore_properties(
     city: Optional[str] = Query(None),
     minRating: Optional[float] = Query(None),
     transaction_type: Optional[str] = Query(None),
+    # user=Depends(get_current_user),  
     supabase: Client = Depends(get_supabase)
 ):
+    # user_id = user["id"]
+
     query = (
         supabase.table("properties")
         .select(
@@ -22,6 +26,7 @@ def explore_properties(
         .eq("verified", True)
         .eq("approval_status", "Approved")
         .eq("status", "Available")
+        # .neq("owner_id", user_id)  
     )
 
     if type:

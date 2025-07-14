@@ -404,9 +404,9 @@ export default function PropertyDetailPage() {
                 <div className="text-right">
                   <div className="text-3xl font-bold text-green-600">{formatCurrency(property.price)}</div>
                   <div className="text-sm text-muted-foreground">
-                    {property.transaction_type === "lease"
+                    {property.transaction_type === "Lease"
                       ? "per month"
-                      : property.transaction_type === "pg"
+                      : property.transaction_type === "PG"
                         ? "per month"
                         : "total price"}
                   </div>
