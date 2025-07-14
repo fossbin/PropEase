@@ -173,10 +173,10 @@ export default function LoginPage() {
               </button>
 
               <div className="relative">
-                <div className="absolute inset-0 flex items-center">
+                <div className="flex items-center">
                   <div className="w-full border-t border-white/20" />
                 </div>
-                <div className="relative flex justify-center text-sm">
+                <div className="pt-3 flex justify-center text-sm">
                   <span className="px-4 bg-transparent text-slate-400">Don't have an account?</span>
                 </div>
               </div>
@@ -184,7 +184,7 @@ export default function LoginPage() {
               <div className="text-center">
                 <Link
                   href="/auth/register"
-                  className="inline-flex items-center space-x-2 font-medium text-blue-400 hover:text-blue-300 transition-colors py-2 px-4 rounded-lg hover:bg-white/5"
+                  className="inline-flex items-center space-x-2 font-medium text-blue-400 hover:text-blue-300 transition-colors py-1 px-4 rounded-lg hover:bg-white/5"
                 >
                   <span>Create your account</span>
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
