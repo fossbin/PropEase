@@ -164,11 +164,19 @@ def generate_pdf_reportlab(data: dict, title: str) -> bytes:
     return buffer.read()
 
 def upload_pdf_to_supabase(supabase, bucket: str, path: str, pdf_bytes: bytes) -> str:
-    supabase.storage.from_(bucket).upload(path, pdf_bytes, {
+    response = supabase.storage.from_(bucket).upload(path, pdf_bytes, {
         "content-type": "application/pdf",
-        "upsert": True
+        "x-upsert": "true"
     })
+
+    if not response or not getattr(response, "path", None):
+        print("File upload failed:", response)
+        raise HTTPException(status_code=500, detail="File upload failed")
+
     return f"{bucket}/{path}"
+
+
+
 
 @router.patch("/{application_id}")
 def update_application(application_id: UUID, payload: dict, supabase=Depends(get_supabase), user=Depends(get_current_user)):
@@ -197,7 +205,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             if not property_data:
                 raise HTTPException(status_code=404, detail="Property not found")
 
-            prop_type = property_data["type"]
+            prop_type = property_data["transaction_type"]
             owner_id = property_data["owner_id"]
             
             # Safely handle price conversion
@@ -230,15 +238,24 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     "owner_id": owner_id,
                     "start_date": app["lease_start"],
                     "end_date": app["lease_end"],
-                    "rent": price,
+                    "rent": str(price),  # Convert to string for DECIMAL
                     "agreement_file": file_path,
                     "payment_status": "Pending",
                     "payment_due_date": app["lease_start"],
                     "last_paid_month": None,
-                    "late_fee": 0,
-                    "status": "Pending Payment"
+                    "late_fee": "0.00",  # String for DECIMAL
+                    "status": "Pending Payment",
+                    "application_id": str(application_id)  # Add missing field
                 }
-                supabase.table("leases").insert(lease_payload).execute()
+                
+                lease_result = supabase.table("leases").insert(lease_payload).execute()
+
+                if not lease_result.data:
+                    print("Lease insert failed:", lease_result)
+                    raise HTTPException(status_code=500, detail="Failed to create lease record")
+
+                print(f"Lease created successfully: {lease_result.data[0]['id']}")
+
 
             elif prop_type == "Sale":
                 account_res = supabase.table("accounts").select("balance").eq("user_id", app["applicant_id"]).limit(1).execute()
@@ -268,11 +285,17 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     "property_id": app["property_id"],
                     "buyer_id": app["applicant_id"],
                     "seller_id": owner_id,
-                    "sale_price": price,
+                    "sale_price": str(price),  # Convert to string for DECIMAL
                     "deed_file": file_path,
-                    "status": "Pending Payment"
+                    "status": "Pending Payment",
+                    "application_id": str(application_id)  # Add missing field
                 }
-                supabase.table("sales").insert(sale_payload).execute()
+                
+                sale_result = supabase.table("sales").insert(sale_payload).execute()
+                if not sale_result.data:
+                    print(f"Sale insert failed: {sale_result}")
+                    raise HTTPException(status_code=500, detail="Failed to create sale record")
+                print(f"Sale created successfully: {sale_result.data[0]['id']}")
 
             elif prop_type == "PG" and app.get("subscription_start") and app.get("subscription_end"):
                 sub_id = str(uuid4())
@@ -296,16 +319,22 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     "user_id": app["applicant_id"],
                     "start_date": app["subscription_start"],
                     "end_date": app["subscription_end"],
-                    "rent": price,
+                    "rent": str(price),  # Convert to string for DECIMAL
                     "payment_status": "Pending",
                     "payment_due_date": app["subscription_start"],
                     "last_paid_period": None,
-                    "late_fee": 0,
+                    "late_fee": "0.00",  # String for DECIMAL
                     "is_active": True,
                     "agreement_file": file_path,
-                    "status": "Pending Payment"
+                    "status": "Pending Payment",
+                    "application_id": str(application_id)  # Add missing field
                 }
-                supabase.table("subscriptions").insert(sub_payload).execute()
+                
+                sub_result = supabase.table("subscriptions").insert(sub_payload).execute()
+                if not sub_result.data:
+                    print(f"Subscription insert failed: {sub_result}")
+                    raise HTTPException(status_code=500, detail="Failed to create subscription record")
+                print(f"Subscription created successfully: {sub_result.data[0]['id']}")
 
         return updated_app
     

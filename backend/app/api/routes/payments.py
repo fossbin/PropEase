@@ -7,81 +7,109 @@ from app.db.supabase import get_supabase_client as get_supabase
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-# 1. GET /payments - Fetch paid and pending payments
 @router.get("/", response_model=List[Dict])
 def get_payments(current_user: dict = Depends(get_current_user)):
     supabase = get_supabase()
     user_id = current_user["id"]
 
-    account_response = supabase.table("accounts").select("id").eq("user_id", user_id).single().execute()
-    if account_response.error or not account_response.data:
+    account = supabase.table("accounts").select("id").eq("user_id", user_id).single().execute().data
+    if not account:
         raise HTTPException(status_code=400, detail="Account not found")
-    account_id = account_response.data["id"]
 
-    tx_response = (
-        supabase.table("account_transactions")
-        .select("*, properties(title, transaction_type), leases(start_date, end_date), subscriptions(start_date, end_date)")
-        .eq("account_id", account_id)
-        .eq("type", "Payment")
-        .order("created_at", desc=True)
-        .execute()
-    )
-    if tx_response.error:
-        raise HTTPException(status_code=500, detail=tx_response.error.message)
-
-    pending_response = supabase.table("applications") \
-        .select("id, property_id, status, created_at, properties!applications_property_id_fkey(id, title, transaction_type, price, owner_id)") \
-        .eq("applicant_id", user_id) \
-        .eq("status", "Approved") \
-        .execute()
-    if pending_response.error:
-        raise HTTPException(status_code=500, detail=pending_response.error.message)
-
+    account_id = account["id"]
     payments = []
-    for tx in tx_response.data:
+
+    # Paid transactions
+    txs = supabase.table("account_transactions").select(
+        "*, properties(id, title, transaction_type), leases(id), subscriptions(id)"
+    ).eq("account_id", account_id).eq("type", "Payment").order("created_at", desc=True).execute().data or []
+
+    for tx in txs:
+        prop = tx.get("properties")
         payments.append({
-            "type": tx.get("type"),
-            "amount": tx.get("amount"),
-            "description": tx.get("description"),
-            "created_at": tx.get("created_at"),
-            "property": tx.get("properties"),
+            "type": prop.get("transaction_type") if prop else "Unknown",
+            "amount": tx["amount"],
+            "description": tx["description"],
+            "created_at": tx["created_at"],
+            "property": prop,
             "status": "Paid",
             "recurring": bool(tx.get("lease_id") or tx.get("subscription_id")),
+            "lease_id": tx.get("lease_id"),
+            "subscription_id": tx.get("subscription_id")
         })
 
-    for app in pending_response.data:
-        prop = app.get("properties")
+    # Pending payments: sales
+    sales = supabase.table("sales").select(
+        "id, sale_price, created_at, properties(id, title, transaction_type)"
+    ).eq("buyer_id", user_id).eq("status", "Pending Payment").execute().data or []
+
+    for sale in sales:
+        prop = sale["properties"]
         payments.append({
-            "type": "Pending Payment",
-            "amount": prop["price"],
-            "description": f"{prop['transaction_type']} payment pending for '{prop['title']}'",
-            "created_at": app["created_at"],
+            "type": "Sale",
+            "amount": sale["sale_price"],
+            "description": f"Sale payment pending for '{prop['title']}'" if prop else "Sale payment pending",
+            "created_at": sale["created_at"],
             "property": prop,
-            "status": "Pending",
-            "recurring": prop["transaction_type"] in ["Lease", "PG"]
+            "status": "Pending Payment",
+            "sale_id": sale["id"],
+            "recurring": False
+        })
+
+    # Pending leases
+    leases = supabase.table("leases").select(
+        "id, rent, created_at, properties(id, title, transaction_type)"
+    ).eq("tenant_id", user_id).eq("status", "Pending Payment").execute().data or []
+
+    for lease in leases:
+        prop = lease["properties"]
+        payments.append({
+            "type": "Lease",
+            "amount": lease["rent"],
+            "description": f"Lease payment pending for '{prop['title']}'" if prop else "Lease payment pending",
+            "created_at": lease["created_at"],
+            "property": prop,
+            "status": "Pending Payment",
+            "lease_id": lease["id"],
+            "recurring": True
+        })
+
+    # Pending subscriptions
+    subs = supabase.table("subscriptions").select(
+        "id, rent, created_at, properties(id, title, transaction_type)"
+    ).eq("user_id", user_id).eq("status", "Pending Payment").execute().data or []
+
+    for sub in subs:
+        prop = sub["properties"]
+        payments.append({
+            "type": "PG",
+            "amount": sub["rent"],
+            "description": f"PG payment pending for '{prop['title']}'" if prop else "PG payment pending",
+            "created_at": sub["created_at"],
+            "property": prop,
+            "status": "Pending Payment",
+            "subscription_id": sub["id"],
+            "recurring": True
         })
 
     return payments
 
-# 2. GET /payments/{id}
+
 @router.get("/{payment_id}", response_model=Dict)
 def get_payment_detail(payment_id: UUID, current_user: dict = Depends(get_current_user)):
     supabase = get_supabase()
     user_id = current_user["id"]
 
-    response = (
-        supabase.table("account_transactions")
-        .select("*, properties(title, transaction_type), leases(start_date, end_date), subscriptions(start_date, end_date)")
-        .eq("id", str(payment_id))
-        .single()
-        .execute()
-    )
-    if response.error:
+    result = supabase.table("account_transactions").select(
+        "*, properties(title, transaction_type), leases(start_date, end_date), subscriptions(start_date, end_date)"
+    ).eq("id", str(payment_id)).single().execute()
+
+    if result.error or not result.data:
         raise HTTPException(status_code=404, detail="Payment not found")
 
-    payment = response.data
+    payment = result.data
     if payment["user_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this payment")
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     return {
         "id": payment["id"],
@@ -93,104 +121,117 @@ def get_payment_detail(payment_id: UUID, current_user: dict = Depends(get_curren
         "created_at": payment["created_at"]
     }
 
-# 3. POST /payments/pay/{application_id}
-@router.post("/pay/{application_id}")
-def pay_for_property(application_id: UUID, current_user: dict = Depends(get_current_user)):
+
+@router.post("/pay/sale/{sale_id}")
+def pay_for_sale(sale_id: UUID, current_user: dict = Depends(get_current_user)):
     supabase = get_supabase()
     user_id = current_user["id"]
 
-    app_res = supabase.table("applications").select("*").eq("id", str(application_id)).single().execute()
-    if app_res.error or not app_res.data:
-        raise HTTPException(status_code=404, detail="Application not found")
-    app = app_res.data
+    sale = supabase.table("sales").select("*", "properties(*)").eq("id", str(sale_id)).single().execute().data
+    if not sale or sale["status"] != "Pending Payment":
+        raise HTTPException(status_code=400, detail="Sale not found or already paid")
 
-    if app["status"] != "Approved":
-        raise HTTPException(status_code=400, detail="Only approved applications can be paid for")
+    amount = sale["sale_price"]
+    prop = sale["properties"]
 
-    prop_res = supabase.table("properties").select("*").eq("id", app["property_id"]).single().execute()
-    if prop_res.error or not prop_res.data:
-        raise HTTPException(status_code=404, detail="Property not found")
-    prop = prop_res.data
-    amount = float(app["bid_amount"] or prop["price"])
-
-    buyer_acc = supabase.table("accounts").select("*").eq("user_id", user_id).single().execute()
-    if buyer_acc.error:
-        raise HTTPException(status_code=400, detail="Seeker account not found")
-    if float(buyer_acc.data["balance"]) < amount:
+    buyer_acc = supabase.table("accounts").select("*").eq("user_id", user_id).single().execute().data
+    if float(buyer_acc["balance"]) < amount:
         raise HTTPException(status_code=400, detail="Insufficient balance")
 
-    seller_acc = supabase.table("accounts").select("*").eq("user_id", prop["owner_id"]).single().execute()
-    if seller_acc.error:
-        raise HTTPException(status_code=400, detail="Provider account not found")
+    seller_acc = supabase.table("accounts").select("*").eq("user_id", prop["owner_id"]).single().execute().data
 
     # Transfer funds
-    supabase.table("accounts").update({
-        "balance": float(buyer_acc.data["balance"]) - amount
-    }).eq("id", buyer_acc.data["id"]).execute()
-    supabase.table("accounts").update({
-        "balance": float(seller_acc.data["balance"]) + amount
-    }).eq("id", seller_acc.data["id"]).execute()
+    supabase.table("accounts").update({"balance": float(buyer_acc["balance"]) - amount}).eq("id", buyer_acc["id"]).execute()
+    supabase.table("accounts").update({"balance": float(seller_acc["balance"]) + amount}).eq("id", seller_acc["id"]).execute()
 
-    transaction_type = prop["transaction_type"]
-    now = datetime.now()
-    if transaction_type == "Sale":
-        supabase.table("sales").insert({
-            "id": str(uuid4()),
-            "property_id": prop["id"],
-            "buyer_id": user_id,
-            "seller_id": prop["owner_id"],
-            "sale_price": amount,
-            "application_id": str(application_id),
-            "status": "Sold"
-        }).execute()
-        supabase.table("properties").update({"status": "Sold"}).eq("id", prop["id"]).execute()
-
-    elif transaction_type == "Lease":
-        supabase.table("leases").insert({
-            "id": str(uuid4()),
-            "property_id": prop["id"],
-            "tenant_id": user_id,
-            "owner_id": prop["owner_id"],
-            "start_date": app["lease_start"],
-            "end_date": app["lease_end"],
-            "rent": amount,
-            "last_paid_month": now.date(),
-            "payment_due_date": (now + timedelta(days=30)).date(),
-            "payment_status": "Paid",
-            "application_id": str(application_id),
-            "status": "Booked"
-        }).execute()
-        supabase.table("properties").update({"status": "Booked"}).eq("id", prop["id"]).execute()
-
-    elif transaction_type == "PG":
-        supabase.table("subscriptions").insert({
-            "id": str(uuid4()),
-            "property_id": prop["id"],
-            "user_id": user_id,
-            "start_date": app["subscription_start"],
-            "end_date": app["subscription_end"],
-            "rent": amount,
-            "last_paid_period": now.date(),
-            "payment_due_date": (now + timedelta(days=30)).date(),
-            "payment_status": "Paid",
-            "application_id": str(application_id),
-            "status": "Booked"
-        }).execute()
-        supabase.table("properties").update({"status": "Booked"}).eq("id", prop["id"]).execute()
+    # Update sale and property
+    supabase.table("sales").update({"status": "Sold"}).eq("id", str(sale_id)).execute()
+    supabase.table("properties").update({"status": "Sold"}).eq("id", prop["id"]).execute()
 
     supabase.table("account_transactions").insert({
-        "account_id": buyer_acc.data["id"],
-        "type": "Payment",
-        "amount": amount,
-        "description": f"{transaction_type} payment for {prop['title']}",
-        "property_id": prop["id"],
-        "user_id": user_id
+        "account_id": buyer_acc["id"], "type": "Payment", "amount": amount,
+        "description": f"Sale payment for {prop['title']}", "property_id": prop["id"], "user_id": user_id
     }).execute()
 
-    supabase.table("applications").update({"status": "Completed"}).eq("id", application_id).execute()
-    return {"detail": f"{transaction_type} payment successful"}
+    return {"detail": "Sale payment successful"}
 
-# 4. POST /payments/recurring
+
+@router.post("/pay/lease/{lease_id}")
+def pay_for_lease(lease_id: UUID, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    user_id = current_user["id"]
+
+    lease = supabase.table("leases").select("*", "properties(*)").eq("id", str(lease_id)).single().execute().data
+    if not lease or lease["status"] != "Pending Payment":
+        raise HTTPException(status_code=400, detail="Lease not found or already paid")
+
+    amount = lease["rent"]
+    prop = lease["properties"]
+
+    tenant_acc = supabase.table("accounts").select("*").eq("user_id", user_id).single().execute().data
+    owner_acc = supabase.table("accounts").select("*").eq("user_id", prop["owner_id"]).single().execute().data
+
+    if float(tenant_acc["balance"]) < amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+
+    # Transfer funds
+    supabase.table("accounts").update({"balance": float(tenant_acc["balance"]) - amount}).eq("id", tenant_acc["id"]).execute()
+    supabase.table("accounts").update({"balance": float(owner_acc["balance"]) + amount}).eq("id", owner_acc["id"]).execute()
+
+    now = datetime.now()
+    supabase.table("leases").update({
+        "status": "Booked", "payment_status": "Paid",
+        "last_paid_month": now.date(), "payment_due_date": (now + timedelta(days=30)).date()
+    }).eq("id", str(lease_id)).execute()
+
+    supabase.table("properties").update({"status": "Booked"}).eq("id", prop["id"]).execute()
+
+    supabase.table("account_transactions").insert({
+        "account_id": tenant_acc["id"], "type": "Payment", "amount": amount,
+        "description": f"Lease payment for {prop['title']}", "property_id": prop["id"], "user_id": user_id, "lease_id": lease_id
+    }).execute()
+
+    return {"detail": "Lease payment successful"}
+
+
+@router.post("/pay/subscription/{subscription_id}")
+def pay_for_subscription(subscription_id: UUID, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    user_id = current_user["id"]
+
+    sub = supabase.table("subscriptions").select("*", "properties(*)").eq("id", str(subscription_id)).single().execute().data
+    if not sub or sub["status"] != "Pending Payment":
+        raise HTTPException(status_code=400, detail="Subscription not found or already paid")
+
+    amount = sub["rent"]
+    prop = sub["properties"]
+
+    seeker_acc = supabase.table("accounts").select("*").eq("user_id", user_id).single().execute().data
+    provider_acc = supabase.table("accounts").select("*").eq("user_id", prop["owner_id"]).single().execute().data
+
+    if float(seeker_acc["balance"]) < amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+
+    # Transfer funds
+    supabase.table("accounts").update({"balance": float(seeker_acc["balance"]) - amount}).eq("id", seeker_acc["id"]).execute()
+    supabase.table("accounts").update({"balance": float(provider_acc["balance"]) + amount}).eq("id", provider_acc["id"]).execute()
+
+    now = datetime.now()
+    supabase.table("subscriptions").update({
+        "status": "Booked", "payment_status": "Paid",
+        "last_paid_period": now.date(), "payment_due_date": (now + timedelta(days=30)).date()
+    }).eq("id", str(subscription_id)).execute()
+
+    supabase.table("properties").update({"status": "Booked"}).eq("id", prop["id"]).execute()
+
+    supabase.table("account_transactions").insert({
+        "account_id": seeker_acc["id"], "type": "Payment", "amount": amount,
+        "description": f"Subscription payment for {prop['title']}", "property_id": prop["id"], "user_id": user_id, "subscription_id": subscription_id
+    }).execute()
+
+    return {"detail": "Subscription payment successful"}
+
+
 @router.post("/recurring")
 def pay_recurring(
     lease_id: Optional[UUID] = None,
@@ -204,7 +245,7 @@ def pay_recurring(
     if lease_id:
         lease = supabase.table("leases").select("*").eq("id", str(lease_id)).single().execute().data
         if lease["tenant_id"] != user_id:
-            raise HTTPException(status_code=403, detail="Lease not owned by user")
+            raise HTTPException(status_code=403, detail="Unauthorized")
 
         tenant_acc = supabase.table("accounts").select("*").eq("user_id", user_id).single().execute().data
         owner_acc = supabase.table("accounts").select("*").eq("user_id", lease["owner_id"]).single().execute().data
@@ -212,11 +253,9 @@ def pay_recurring(
         if float(tenant_acc["balance"]) < lease["rent"]:
             raise HTTPException(status_code=400, detail="Insufficient balance")
 
-        # Transfer funds
         supabase.table("accounts").update({"balance": float(tenant_acc["balance"]) - lease["rent"]}).eq("id", tenant_acc["id"]).execute()
         supabase.table("accounts").update({"balance": float(owner_acc["balance"]) + lease["rent"]}).eq("id", owner_acc["id"]).execute()
 
-        # Update lease
         supabase.table("leases").update({
             "last_paid_month": now,
             "payment_due_date": (now + timedelta(days=30)),
@@ -224,15 +263,10 @@ def pay_recurring(
             "late_fee": 0.00
         }).eq("id", str(lease_id)).execute()
 
-        # Transaction
         supabase.table("account_transactions").insert({
-            "account_id": tenant_acc["id"],
-            "type": "Payment",
-            "amount": lease["rent"],
-            "description": "Monthly lease payment",
-            "property_id": lease["property_id"],
-            "user_id": user_id,
-            "lease_id": lease_id
+            "account_id": tenant_acc["id"], "type": "Payment", "amount": lease["rent"],
+            "description": "Monthly lease payment", "property_id": lease["property_id"],
+            "user_id": user_id, "lease_id": lease_id
         }).execute()
 
         return {"detail": "Lease payment successful"}
@@ -240,15 +274,15 @@ def pay_recurring(
     elif subscription_id:
         sub = supabase.table("subscriptions").select("*").eq("id", str(subscription_id)).single().execute().data
         if sub["user_id"] != user_id:
-            raise HTTPException(status_code=403, detail="Subscription not owned by user")
+            raise HTTPException(status_code=403, detail="Unauthorized")
 
         seeker_acc = supabase.table("accounts").select("*").eq("user_id", user_id).single().execute().data
-        provider_acc = supabase.table("accounts").select("*").eq("user_id", sub["property_id"]).single().execute().data
+        owner_id = supabase.table("properties").select("owner_id").eq("id", sub["property_id"]).single().execute().data["owner_id"]
+        provider_acc = supabase.table("accounts").select("*").eq("user_id", owner_id).single().execute().data
 
         if float(seeker_acc["balance"]) < sub["rent"]:
             raise HTTPException(status_code=400, detail="Insufficient balance")
 
-        # Transfer funds
         supabase.table("accounts").update({"balance": float(seeker_acc["balance"]) - sub["rent"]}).eq("id", seeker_acc["id"]).execute()
         supabase.table("accounts").update({"balance": float(provider_acc["balance"]) + sub["rent"]}).eq("id", provider_acc["id"]).execute()
 
@@ -260,13 +294,9 @@ def pay_recurring(
         }).eq("id", str(subscription_id)).execute()
 
         supabase.table("account_transactions").insert({
-            "account_id": seeker_acc["id"],
-            "type": "Payment",
-            "amount": sub["rent"],
-            "description": "Monthly PG payment",
-            "property_id": sub["property_id"],
-            "user_id": user_id,
-            "subscription_id": subscription_id
+            "account_id": seeker_acc["id"], "type": "Payment", "amount": sub["rent"],
+            "description": "Monthly PG payment", "property_id": sub["property_id"],
+            "user_id": user_id, "subscription_id": subscription_id
         }).execute()
 
         return {"detail": "PG subscription payment successful"}

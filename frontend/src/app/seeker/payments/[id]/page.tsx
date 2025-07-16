@@ -3,82 +3,99 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Loader2, CalendarCheck, Info } from 'lucide-react';
 import { format } from 'date-fns';
 
-interface Property {
+interface PaymentDetail {
   id: string;
-  title: string;
-  transaction_type: string;
-}
-
-interface LeaseOrSubscription {
-  start_date: string;
-  end_date: string;
-}
-
-interface Payment {
-  id: string;
-  amount: number;
   type: string;
+  amount: number;
   description: string;
   created_at: string;
-  property: Property | null;
-  lease_period?: LeaseOrSubscription | null;
+  property: {
+    title: string;
+    transaction_type: string;
+  };
+  lease_period?: {
+    start_date: string;
+    end_date: string;
+  };
 }
 
 export default function PaymentDetailPage() {
+  const { id } = useParams();
   const router = useRouter();
-  const params = useParams();
-  const { payment_id } = params as { payment_id: string };
-  const [payment, setPayment] = useState<Payment | null>(null);
+  const [detail, setDetail] = useState<PaymentDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
-    const fetchPayment = async () => {
+    const fetchDetail = async () => {
       try {
-        const res = await fetch(`/api/payments/${payment_id}`);
-        if (!res.ok) throw new Error('Failed to fetch payment');
+        const res = await fetch(`${API_BASE_URL}/api/payments/${id}`);
+        if (!res.ok) throw new Error('Failed to fetch payment detail');
         const data = await res.json();
-        setPayment(data);
-      } catch (error) {
-        console.error('Error fetching payment detail:', error);
+        setDetail(data);
+      } catch (err) {
+        console.error(err);
+        alert('Error loading payment details.');
+        router.push('/payments');
       } finally {
         setLoading(false);
       }
     };
 
-    if (payment_id) {
-      fetchPayment();
-    }
-  }, [payment_id]);
+    if (id) fetchDetail();
+  }, [id]);
 
-  if (loading) return <div className="p-4">Loading payment details...</div>;
-  if (!payment) return <div className="p-4 text-red-500">Payment not found.</div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12 text-gray-600">
+        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+        Loading payment details...
+      </div>
+    );
+  }
 
-  const leasePeriod =
-    payment.lease_period?.start_date && payment.lease_period?.end_date
-      ? `${format(new Date(payment.lease_period.start_date), 'PPP')} – ${format(new Date(payment.lease_period.end_date), 'PPP')}`
-      : 'N/A';
+  if (!detail) return null;
 
   return (
-    <div className="max-w-xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Payment Detail</h1>
+    <div className="max-w-3xl mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+        <Info className="w-6 h-6" /> Payment Detail
+      </h2>
       <Card>
         <CardContent className="p-4 space-y-3">
-          <p><strong>Amount:</strong> ₹{payment.amount.toFixed(2)}</p>
-          <p><strong>Type:</strong> {payment.type}</p>
-          <p><strong>Description:</strong> {payment.description || 'No description'}</p>
-          <p><strong>Date:</strong> {format(new Date(payment.created_at), 'PPPpp')}</p>
-          <hr />
-          <p><strong>Property:</strong> {payment.property?.title || 'N/A'}</p>
-          <p><strong>Transaction Type:</strong> {payment.property?.transaction_type || 'N/A'}</p>
-          <p><strong>Lease/Subscription Period:</strong> {leasePeriod}</p>
+          <div>
+            <p className="text-sm text-gray-600">Property</p>
+            <p className="text-lg font-semibold">{detail.property.title}</p>
+            <p className="text-xs text-gray-500">
+              Type: {detail.property.transaction_type}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Amount</p>
+            <p className="text-lg font-semibold text-green-600">₹{detail.amount.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Description</p>
+            <p className="text-md">{detail.description}</p>
+          </div>
+          {detail.lease_period && (
+            <div>
+              <p className="text-sm text-gray-600">Duration</p>
+              <p className="text-sm">
+                {format(new Date(detail.lease_period.start_date), 'PPP')} →{' '}
+                {format(new Date(detail.lease_period.end_date), 'PPP')}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <CalendarCheck className="w-4 h-4" />
+            Paid on {format(new Date(detail.created_at), 'PPP')}
+          </div>
         </CardContent>
       </Card>
-      <div className="mt-4">
-        <Button onClick={() => router.back()} variant="outline">Back</Button>
-      </div>
     </div>
   );
 }

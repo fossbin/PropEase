@@ -19,7 +19,10 @@ interface Payment {
     title: string;
     transaction_type: string;
   };
-  status: 'Paid' | 'Pending';
+  sale_id?: string;
+  lease_id?: string;
+  subscription_id?: string;
+  status: 'Paid' | 'Pending Payment';
   recurring?: boolean;
 }
 
@@ -27,6 +30,7 @@ export default function PaymentsPage() {
   const router = useRouter();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -42,9 +46,10 @@ export default function PaymentsPage() {
       }
 
       try {
-        const res = await fetch('/api/payments', {
+        const res = await fetch(`${API_BASE_URL}/api/payments`, {
           method: 'GET',
           headers: {
+            'X-User-Id': sessionStorage.getItem('userId') || '',
             'Content-Type': 'application/json',
           },
         });
@@ -62,6 +67,46 @@ export default function PaymentsPage() {
 
     fetchPayments();
   }, []);
+
+  const handlePayment = async (payment: Payment) => {
+    const id = payment.sale_id || payment.lease_id || payment.subscription_id;
+    const endpoint = payment.sale_id
+      ? 'sale'
+      : payment.lease_id
+      ? 'lease'
+      : 'subscription';
+
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE_URL}/api/payments/pay/${endpoint}/${id}`, {
+        method: 'POST',
+        headers: {
+          'X-User-Id': sessionStorage.getItem('userId') || '',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) throw new Error('Payment failed');
+
+      // Refetch payments
+      const refreshed = await fetch(`${API_BASE_URL}/api/payments`, {
+        method: 'GET',
+        headers: {
+          'X-User-Id': sessionStorage.getItem('userId') || '',
+          'Content-Type': 'application/json',
+        },
+      });
+      const newData: Payment[] = await refreshed.json();
+      setPayments(newData);
+    } catch (err) {
+      console.error('Payment error:', err);
+      alert('Payment failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -85,8 +130,8 @@ export default function PaymentsPage() {
         payments.map((payment, index) => (
           <Card
             key={index}
-            className={`hover:shadow-md transition cursor-pointer ${
-              payment.status === 'Pending' ? 'bg-yellow-50' : 'bg-white'
+            className={`hover:shadow-md transition ${
+              payment.status === 'Pending Payment' ? 'bg-yellow-50' : 'bg-white'
             }`}
             onClick={() => {
               if (payment.status === 'Paid' && payment.id) {
@@ -104,16 +149,34 @@ export default function PaymentsPage() {
                     {payment.recurring && <span className="ml-1 text-blue-500">(Recurring)</span>}
                   </p>
                 </div>
-                <div className="text-sm text-right">
+                <div className="text-sm text-right space-y-2">
+                  {payment.status === 'Pending Payment' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePayment(payment);
+                      }}
+                    >
+                      Pay Now
+                    </Button>
+                  )}
                   <div
                     className={`flex items-center justify-end space-x-1 ${
-                      payment.status === 'Pending' ? 'text-yellow-600' : 'text-green-600'
+                      payment.status === 'Pending Payment' ? 'text-yellow-600' : 'text-green-600'
                     }`}
                   >
-                    {payment.status === 'Pending' ? <Clock className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                    {payment.status === 'Pending Payment' ? (
+                      <Clock className="w-4 h-4" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
                     <span>{payment.status}</span>
                   </div>
-                  <p className="text-gray-500 text-xs">{format(new Date(payment.created_at), 'PPP')}</p>
+                  <p className="text-gray-500 text-xs">
+                    {format(new Date(payment.created_at), 'PPP')}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -123,3 +186,4 @@ export default function PaymentsPage() {
     </div>
   );
 }
+``

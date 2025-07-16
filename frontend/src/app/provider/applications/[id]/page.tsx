@@ -141,7 +141,7 @@ export default function ApplicationDetailPage() {
 
           <p><strong>Message:</strong> {application.message || 'N/A'}</p>
 
-          {application.bid_amount !== undefined && (
+          {typeof application.bid_amount === 'number' && (
             <p><strong>Bid Amount:</strong> ₹{application.bid_amount.toFixed(2)}</p>
           )}
 
