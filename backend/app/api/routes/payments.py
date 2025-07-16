@@ -178,18 +178,27 @@ def pay_for_lease(lease_id: UUID, current_user: dict = Depends(get_current_user)
     supabase.table("accounts").update({"balance": float(tenant_acc["balance"]) - amount}).eq("id", tenant_acc["id"]).execute()
     supabase.table("accounts").update({"balance": float(owner_acc["balance"]) + amount}).eq("id", owner_acc["id"]).execute()
 
-    now = datetime.now()
+    now = datetime.now().date()
     supabase.table("leases").update({
-        "status": "Booked", "payment_status": "Paid",
-        "last_paid_month": now.date(), "payment_due_date": (now + timedelta(days=30)).date()
+        "status": "Booked",
+        "payment_status": "Paid",
+        "last_paid_month": now.isoformat(),
+        "payment_due_date": (now + timedelta(days=30)).isoformat()
     }).eq("id", str(lease_id)).execute()
+
 
     supabase.table("properties").update({"status": "Booked"}).eq("id", prop["id"]).execute()
 
     supabase.table("account_transactions").insert({
-        "account_id": tenant_acc["id"], "type": "Payment", "amount": amount,
-        "description": f"Lease payment for {prop['title']}", "property_id": prop["id"], "user_id": user_id, "lease_id": lease_id
+        "account_id": tenant_acc["id"],
+        "type": "Payment",
+        "amount": amount,
+        "description": f"Lease payment for {prop['title']}",
+        "property_id": str(prop["id"]),
+        "user_id": str(user_id),
+        "lease_id": str(lease_id)
     }).execute()
+
 
     return {"detail": "Lease payment successful"}
 
@@ -216,18 +225,27 @@ def pay_for_subscription(subscription_id: UUID, current_user: dict = Depends(get
     supabase.table("accounts").update({"balance": float(seeker_acc["balance"]) - amount}).eq("id", seeker_acc["id"]).execute()
     supabase.table("accounts").update({"balance": float(provider_acc["balance"]) + amount}).eq("id", provider_acc["id"]).execute()
 
-    now = datetime.now()
+    now = datetime.now().date()
     supabase.table("subscriptions").update({
-        "status": "Booked", "payment_status": "Paid",
-        "last_paid_period": now.date(), "payment_due_date": (now + timedelta(days=30)).date()
+        "status": "Booked",
+        "payment_status": "Paid",
+        "last_paid_period": now.isoformat(),
+        "payment_due_date": (now + timedelta(days=30)).isoformat()
     }).eq("id", str(subscription_id)).execute()
+
 
     supabase.table("properties").update({"status": "Booked"}).eq("id", prop["id"]).execute()
 
     supabase.table("account_transactions").insert({
-        "account_id": seeker_acc["id"], "type": "Payment", "amount": amount,
-        "description": f"Subscription payment for {prop['title']}", "property_id": prop["id"], "user_id": user_id, "subscription_id": subscription_id
+        "account_id": seeker_acc["id"],
+        "type": "Payment",
+        "amount": amount,
+        "description": f"Subscription payment for {prop['title']}", 
+        "property_id": prop["id"], 
+        "user_id": str(user_id), 
+        "subscription_id": str(subscription_id)
     }).execute()
+
 
     return {"detail": "Subscription payment successful"}
 
@@ -264,10 +282,15 @@ def pay_recurring(
         }).eq("id", str(lease_id)).execute()
 
         supabase.table("account_transactions").insert({
-            "account_id": tenant_acc["id"], "type": "Payment", "amount": lease["rent"],
-            "description": "Monthly lease payment", "property_id": lease["property_id"],
-            "user_id": user_id, "lease_id": lease_id
+            "account_id": tenant_acc["id"],
+            "type": "Payment",
+            "amount": amount,
+            "description": f"Lease payment for {prop['title']}",
+            "property_id": str(prop["id"]),
+            "user_id": str(user_id),
+            "lease_id": str(lease_id)
         }).execute()
+
 
         return {"detail": "Lease payment successful"}
 
@@ -294,9 +317,13 @@ def pay_recurring(
         }).eq("id", str(subscription_id)).execute()
 
         supabase.table("account_transactions").insert({
-            "account_id": seeker_acc["id"], "type": "Payment", "amount": sub["rent"],
-            "description": "Monthly PG payment", "property_id": sub["property_id"],
-            "user_id": user_id, "subscription_id": subscription_id
+            "account_id": seeker_acc["id"], 
+            "type": "Payment", 
+            "amount": sub["rent"],
+            "description": "Monthly PG payment", 
+            "property_id": sub["property_id"],
+            "user_id": str(user_id), 
+            "subscription_id": str(subscription_id)
         }).execute()
 
         return {"detail": "PG subscription payment successful"}
