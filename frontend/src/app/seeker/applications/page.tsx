@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -62,7 +62,7 @@ interface Application {
   owner_name?: string
 }
 
-export default function ApplicationsPage() {
+function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -565,5 +565,13 @@ export default function ApplicationsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ApplicationsPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <ApplicationsPage />
+    </Suspense>
   )
 }
