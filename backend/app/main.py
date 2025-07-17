@@ -28,7 +28,8 @@ app = FastAPI()
 
 # CORS setup
 origins = [
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "https://prop-ease-seven.vercel.app/"
 ]
 
 app.add_middleware(
