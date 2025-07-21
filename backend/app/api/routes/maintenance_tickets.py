@@ -21,25 +21,24 @@ def create_maintenance_ticket(
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    lease_check = supabase.table("leases") \
-        .select("id") \
-        .eq("property_id", ticket_data.property_id) \
-        .eq("tenant_id", user_id) \
-        .execute()
-
+    # Check for active subscriptions - note: subscriptions table doesn't have provider_id
+    # We need to get the property owner as the provider
     subscription_check = supabase.table("subscriptions") \
-        .select("id") \
+        .select("id, property_id") \
         .eq("property_id", ticket_data.property_id) \
         .eq("user_id", user_id) \
         .eq("is_active", True) \
         .execute()
 
-    if not lease_check.data and not subscription_check.data:
-        raise HTTPException(status_code=403, detail="You are not authorized to raise a ticket for this property.")
+    if not subscription_check.data:
+        raise HTTPException(
+            status_code=403, 
+            detail="You can only raise maintenance tickets for properties with active subscriptions."
+        )
 
-    # Get property owner
+    # Get the property and its owner (who acts as the provider for subscriptions)
     prop = supabase.table("properties") \
-        .select("owner_id") \
+        .select("id, title, owner_id") \
         .eq("id", ticket_data.property_id) \
         .single() \
         .execute()
@@ -47,13 +46,16 @@ def create_maintenance_ticket(
     if not prop.data:
         raise HTTPException(status_code=404, detail="Property not found")
 
+    if not prop.data.get("owner_id"):
+        raise HTTPException(status_code=400, detail="Property has no assigned owner/provider")
+
     ticket_id = str(uuid4())
 
     new_ticket = {
         "id": ticket_id,
         "property_id": ticket_data.property_id,
         "raised_by": user_id,
-        "assigned_to": prop.data["owner_id"],
+        "assigned_to": prop.data["owner_id"],  # Assign to property owner (provider)
         "issue_type": ticket_data.issue_type,
         "description": ticket_data.description,
         "status": "Open",
@@ -68,6 +70,7 @@ def get_assigned_tickets(
     request: Request,
     supabase: Client = Depends(get_supabase)
 ):
+    """Get tickets assigned to the current user (provider)"""
     user_id = request.headers.get("X-User-Id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Missing user ID")
@@ -93,25 +96,38 @@ def get_assigned_tickets(
 
     return tickets
 
-
-
 @router.get("/raised", response_model=List[MaintenanceTicketResponse])
 def get_raised_tickets(
     request: Request,
     supabase: Client = Depends(get_supabase)
 ):
+    """Get tickets raised by the current user (seeker)"""
     user_id = request.headers.get("X-User-Id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     result = supabase.table("maintenance_tickets") \
-        .select("*") \
+        .select("""
+            id, property_id, issue_type, description, status, priority, raised_by, assigned_to, created_at,
+            properties(title),
+            users!maintenance_tickets_assigned_to_fkey(name)
+        """) \
         .eq("raised_by", user_id) \
         .order("created_at", desc=True) \
         .execute()
 
-    return result.data or []
+    if not result.data:
+        return []
 
+    tickets = []
+    for item in result.data:
+        tickets.append({
+            **item,
+            "property_title": item.get("properties", {}).get("title", ""),
+            "assigned_to_name": item.get("users", {}).get("name", "")
+        })
+
+    return tickets
 
 @router.patch("/{ticket_id}", response_model=MaintenanceTicketResponse)
 def update_ticket_status(
@@ -120,6 +136,7 @@ def update_ticket_status(
     request: Request,
     supabase: Client = Depends(get_supabase)
 ):
+    """Update ticket status - only assigned provider can update"""
     user_id = request.headers.get("X-User-Id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -133,8 +150,12 @@ def update_ticket_status(
     if not ticket.data:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
+    # Only the assigned provider can update the ticket
     if ticket.data["assigned_to"] != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to update this ticket")
+        raise HTTPException(
+            status_code=403, 
+            detail="Only the assigned provider can update this ticket"
+        )
 
     updated = supabase.table("maintenance_tickets") \
         .update(update_data.dict(exclude_unset=True)) \
@@ -142,3 +163,48 @@ def update_ticket_status(
         .execute()
 
     return updated.data[0]
+
+@router.get("/subscription-properties", response_model=List[dict])
+def get_subscription_properties(
+    request: Request,
+    supabase: Client = Depends(get_supabase)
+):
+    """Get properties where user has active subscriptions"""
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    response = supabase.table("subscriptions") \
+        .select("""
+            property_id,
+            properties!inner(id, title, property_locations(address_line, city, state))
+        """) \
+        .eq("user_id", user_id) \
+        .eq("is_active", True) \
+        .execute()
+
+    if not response.data:
+        return []
+
+    properties = []
+    for item in response.data:
+        if item.get("properties"):
+            property_data = item["properties"]
+            # Get address from property_locations if available
+            address = ""
+            if property_data.get("property_locations") and len(property_data["property_locations"]) > 0:
+                location = property_data["property_locations"][0]
+                address_parts = [
+                    location.get("address_line", ""),
+                    location.get("city", ""),
+                    location.get("state", "")
+                ]
+                address = ", ".join(filter(None, address_parts))
+            
+            properties.append({
+                "id": property_data["id"],
+                "title": property_data["title"],
+                "address": address
+            })
+
+    return properties

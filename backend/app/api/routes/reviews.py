@@ -4,6 +4,7 @@ from typing import List
 from app.models.reviews import ReviewCreate, ReviewResponse
 from app.dependencies import get_current_user
 from app.db.supabase import get_supabase_client as get_supabase
+from app.services.sentiment_local import classify_sentiment  
 from supabase import Client
 
 router = APIRouter(prefix="/seeker", tags=["Seeker Reviews"])
@@ -44,12 +45,15 @@ def create_review(
     if existing_review.data:
         raise HTTPException(status_code=400, detail="You have already reviewed this property.")
 
+    sentiment = classify_sentiment(review_data.comment)
+
     review_obj = {
         "id": str(uuid4()),
         "reviewer_id": user_id,
         "property_id": property_id,
         "rating": review_data.rating,
         "comment": review_data.comment,
+        "sentiment": sentiment
     }
 
     result = supabase.table("reviews").insert(review_obj).execute()

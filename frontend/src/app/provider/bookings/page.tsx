@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { Router } from 'lucide-react';
 
 interface User {
   id: string;
@@ -20,6 +22,7 @@ type LeaseTransaction = {
   end_date: string;
   last_paid_month: string;
   payment_status: string;
+  terminated_at?: string;
   transaction_type: 'Lease';
   user: User;
 };
@@ -32,6 +35,8 @@ type SubscriptionTransaction = {
   end_date: string;
   last_paid_period: string;
   payment_status: string;
+  is_active?: boolean;
+  terminated_at?: string;
   transaction_type: 'PG';
   user: User;
 };
@@ -56,7 +61,6 @@ interface TransactionGroup {
     status: string;
   };
   transactions: Transaction[];
-  latestDate: string;
 }
 
 export default function ProviderTransactionsPage() {
@@ -67,23 +71,15 @@ export default function ProviderTransactionsPage() {
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/provider/transactions`);
+        const res = await fetch(`${API_BASE_URL}/api/provider/transactions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+          },
+        });
         const result = await res.json();
-
         if (Array.isArray(result)) {
-          const sorted = result
-            .map((group: Omit<TransactionGroup, 'latestDate'>) => ({
-              ...group,
-              latestDate: getLatestDate(group.transactions),
-            }))
-            .sort((a, b) => {
-              if (a.property.type === b.property.type) {
-                return new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime();
-              }
-              return a.property.type.localeCompare(b.property.type);
-            });
-
-          setData(sorted);
+          setData(result);
         }
       } catch (error) {
         console.error('Failed to fetch transactions:', error);
@@ -95,19 +91,10 @@ export default function ProviderTransactionsPage() {
     fetchTransactions();
   }, []);
 
-  const getLatestDate = (transactions: Transaction[]): string => {
-    const dates = transactions.map((txn) => {
-      if (txn.transaction_type === 'Sale') return txn.sale_date;
-      if (txn.transaction_type === 'Lease') return txn.last_paid_month;
-      if (txn.transaction_type === 'PG') return txn.last_paid_period;
-      return txn['created_at'];
-    });
-    return dates
-      .filter(Boolean)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
-  };
-
   if (loading) return <p>Loading bookings...</p>;
+
+  if (data.length === 0)
+    return <p className="text-muted-foreground">No transactions found for your properties.</p>;
 
   return (
     <div className="space-y-6">
@@ -124,10 +111,16 @@ export default function ProviderTransactionsPage() {
             </div>
 
             {group.transactions.map((txn) => {
+              const isTerminated = Boolean((txn as any).terminated_at);
+
               return (
-                <div key={txn.id} className="p-3 border rounded space-y-1">
+                <Link
+                  key={txn.id}
+                  href={`bookings/${txn.id}`}
+                  className="block hover:bg-muted rounded-lg p-3 border space-y-1 transition-colors"
+                >
                   <p className="font-medium">
-                    {txn.user.name} ({txn.user.email})
+                    {txn.user?.name || 'Unknown'} ({txn.user?.email || 'No email'})
                   </p>
 
                   {txn.transaction_type === 'Sale' ? (
@@ -155,9 +148,14 @@ export default function ProviderTransactionsPage() {
                         )}
                       </p>
                       <p>Status: {txn.payment_status}</p>
+                      {isTerminated && (
+                        <Badge variant="destructive" className="mt-1">
+                          Terminated
+                        </Badge>
+                      )}
                     </>
                   )}
-                </div>
+                </Link>
               );
             })}
           </CardContent>

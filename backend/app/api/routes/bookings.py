@@ -1,13 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from app.dependencies import get_current_user
 from app.db.supabase import get_supabase_client
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/provider/transactions", tags=["Provider Transactions"])
+
+def latest_date(txns):
+    date_fields = ["last_paid_month", "payment_due_date", "sale_date", "created_at"]
+    dates = []
+    for t in txns:
+        for f in date_fields:
+            raw = t.get(f)
+            if raw:
+                try:
+                    dt = None
+                    if isinstance(raw, str):
+                        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    elif isinstance(raw, datetime):
+                        dt = raw
+                    if dt:
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        dates.append(dt)
+                except Exception as e:
+                    logger.debug(f"Date parsing failed: {e}")
+                    continue
+    return max(dates, default=datetime.min.replace(tzinfo=timezone.utc))
+
 
 @router.get("/")
 async def get_all_transactions(request: Request, current_user: dict = Depends(get_current_user)):
@@ -19,7 +42,7 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
     logger.info(f"Fetching transactions for user_id: {user_id[:8]}...")
 
     try:
-        # Test DB connection
+        # Confirm DB connection
         try:
             _ = supabase.table("properties").select("id").limit(1).execute()
         except Exception as e:
@@ -54,8 +77,8 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
 
         def fetch_transactions_with_user(table: str, user_field: str) -> List[Dict[str, Any]]:
             results = []
-            for i in range(0, len(property_ids), 5):
-                batch = property_ids[i:i+5]
+            for i in range(0, len(property_ids), 20):  # Increased batch size
+                batch = property_ids[i:i + 20]
                 try:
                     res = (supabase.table(table)
                         .select(f"*, {user_field} (id, name, email, phone_number)")
@@ -77,45 +100,25 @@ async def get_all_transactions(request: Request, current_user: dict = Depends(ge
                 "transactions": []
             })
 
-            user_info = None
-            if txn_type == "Lease":
-                user_info = txn.get("tenant_id")
-            elif txn_type == "PG":
-                user_info = txn.get("user_id")
-            elif txn_type == "Sale":
-                user_info = txn.get("buyer_id")
+            user_info = {
+                "Lease": txn.get("tenant_id"),
+                "PG": txn.get("user_id"),
+                "Sale": txn.get("buyer_id")
+            }.get(txn_type)
 
             txn_cleaned = {
                 **txn,
                 "transaction_type": txn_type,
                 "user": user_info
             }
-            # Remove nested user ID key
-            txn_cleaned.pop("tenant_id", None)
-            txn_cleaned.pop("user_id", None)
-            txn_cleaned.pop("buyer_id", None)
+            for k in ["tenant_id", "user_id", "buyer_id"]:
+                txn_cleaned.pop(k, None)
 
             grouped[pid]["transactions"].append(txn_cleaned)
 
         for l in leases: insert_txn(l, "Lease")
         for s in subscriptions: insert_txn(s, "PG")
         for s in sales: insert_txn(s, "Sale")
-
-        def latest_date(txns):
-            date_fields = ["last_paid_month", "payment_due_date", "sale_date", "created_at"]
-            dates = []
-            for t in txns:
-                for f in date_fields:
-                    raw = t.get(f)
-                    if raw:
-                        try:
-                            if isinstance(raw, str):
-                                dates.append(datetime.fromisoformat(raw.replace("Z", "+00:00")))
-                            elif isinstance(raw, datetime):
-                                dates.append(raw)
-                        except Exception:
-                            continue
-            return max(dates, default=datetime.min)
 
         sorted_grouped = sorted(
             grouped.values(),
@@ -145,6 +148,11 @@ async def get_transaction_detail(transaction_id: UUID):
         ("subscriptions", "user_id"),
         ("sales", "buyer_id")
     ]
+    table_map = {
+        "leases": "Lease",
+        "subscriptions": "PG",
+        "sales": "Sale"
+    }
 
     for table, user_field in lookup_tables:
         try:
@@ -158,7 +166,7 @@ async def get_transaction_detail(transaction_id: UUID):
                 txn.pop(user_field, None)
                 return {
                     **txn,
-                    "transaction_type": table[:-1],
+                    "transaction_type": table_map[table],
                     "user": user
                 }
         except Exception as e:
@@ -170,19 +178,37 @@ async def get_transaction_detail(transaction_id: UUID):
 @router.patch("/{transaction_id}/terminate")
 async def terminate_transaction(transaction_id: UUID, current_user: dict = Depends(get_current_user)):
     supabase = get_supabase_client()
+    user_id = current_user["id"]
 
     for table in ["leases", "subscriptions"]:
         try:
             res = supabase.table(table).select("*").eq("id", str(transaction_id)).execute()
             if res.data:
+                txn = res.data[0]
+                property_id = txn["property_id"]
+
+                # Verify provider owns this property
+                owner_check = supabase.table("properties").select("id").eq("id", property_id).eq("owner_id", user_id).execute()
+                if not owner_check.data:
+                    raise HTTPException(status_code=403, detail="Not authorized to terminate this transaction")
+
                 update_data = {
                     "terminated_at": datetime.utcnow().isoformat(),
                     "terminated_by": "provider"
                 }
                 if table == "subscriptions":
                     update_data["is_active"] = False
-                supabase.table(table).update(update_data).eq("id", str(transaction_id)).execute()
-                return {"message": f"{table[:-1].capitalize()} terminated successfully"}
+
+                update_res = supabase.table(table).update(update_data).eq("id", str(transaction_id)).execute()
+
+                logger.info(f"Terminated {table[:-1]} {transaction_id} by provider {user_id}")
+                return {
+                    "message": f"{table[:-1].capitalize()} terminated successfully",
+                    "updated": update_res.data[0] if update_res.data else None
+                }
+
+        except HTTPException:
+            raise
         except Exception as e:
             logger.warning(f"Error terminating {table} transaction {transaction_id}: {e}")
 

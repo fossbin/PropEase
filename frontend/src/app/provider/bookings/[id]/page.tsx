@@ -46,7 +46,12 @@ export default function TransactionDetailPage() {
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/provider/transactions/${id}`);
+        const res = await fetch(`${API_BASE_URL}/api/provider/transactions/${id}`,{
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+          }
+        });
         const json = await res.json();
         setData(json);
       } catch (err) {
