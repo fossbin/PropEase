@@ -45,7 +45,12 @@ export default function UserProfilePage() {
     phone_number: "",
     picture: null,
   })
-  const [documents, setDocuments] = useState<File[]>([])
+  const [document, setDocument] = useState<File | null>(null)
+  const [existingDocument, setExistingDocument] = useState<{
+    document_url: string
+    document_type: string
+    verified: boolean
+  } | null>(null)  
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -87,6 +92,7 @@ export default function UserProfilePage() {
     }
 
     fetchProfile()
+    fetchDocuments(userId)
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,14 +155,20 @@ export default function UserProfilePage() {
     }
   }
 
-  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setDocuments(Array.from(e.target.files))
+  const fetchDocuments = async (userId: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/user/${userId}/documents`)
+      if (!res.ok) throw new Error("Failed to fetch documents")
+      const data = await res.json()
+      if (data.length > 0) setExistingDocument(data[0]) // Only keep one
+    } catch (err) {
+      console.error("Error loading document:", err)
     }
   }
 
-  const removeDocument = (index: number) => {
-    setDocuments((prev) => prev.filter((_, i) => i !== index))
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) setDocument(file)
   }
 
   const removeProfilePicture = () => {
@@ -173,11 +185,10 @@ export default function UserProfilePage() {
     if (!userId) return
 
     try {
-      // Upload documents
-      for (const file of documents) {
+      if (document) {
         const formData = new FormData()
-        formData.append("file", file)
-        formData.append("filename", file.name)
+        formData.append("file", document)
+        formData.append("filename", document.name)
         formData.append("user_id", userId)
 
         const docUploadRes = await fetch(`${API_BASE_URL}/api/user/upload-document`, {
@@ -186,22 +197,9 @@ export default function UserProfilePage() {
         })
 
         if (!docUploadRes.ok) {
-          throw new Error(`Failed to upload document: ${file.name}`)
+          throw new Error(`Failed to upload document: ${document.name}`)
         }
       }
-
-      // Update profile
-      await fetch(`${API_BASE_URL}/api/user/profile`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify(profile),
-      })
-
-      setUploadStatus("success")
-      setDocuments([]) // Clear uploaded documents
     } catch (err) {
       console.error("Update error:", err)
       setUploadStatus("error")
@@ -407,33 +405,50 @@ export default function UserProfilePage() {
               />
             </div>
 
-            {documents.length > 0 && (
-              <div className="space-y-2">
-                <Label>Selected Documents:</Label>
+              {document && (
                 <div className="space-y-2">
-                  {documents.map((doc, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm font-medium">{doc.name}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {(doc.size / 1024 / 1024).toFixed(2)} MB
-                        </Badge>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeDocument(idx)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  <Label>Selected Document:</Label>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium">{document.name}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {(document.size / 1024 / 1024).toFixed(2)} MB
+                      </Badge>
                     </div>
-                  ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDocument(null)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              {existingDocument && (
+                <div className="space-y-2">
+                  <Label>Uploaded Document:</Label>
+                  <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-gray-500" />
+                      <a href={existingDocument.document_url} target="_blank" rel="noopener noreferrer" className="text-sm underline">
+                        {existingDocument.document_url.split("/").pop()}
+                      </a>
+                      <Badge variant="secondary" className="text-xs capitalize">
+                        {existingDocument.document_type.split("/")[1]}
+                      </Badge>
+                      {existingDocument.verified && (
+                        <Badge  className="text-xs ml-2 bg-green-100 text-green-700">
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
           </CardContent>
         </Card>
 

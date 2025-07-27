@@ -55,6 +55,18 @@ async def upload_document(
 
     SUPABASE_URL = os.getenv("SUPABASE_URL")
 
+    # 1. Delete existing document from Supabase Storage (if any)
+    existing = supabase.table("user_documents").select("*").eq("user_id", user_id).execute()
+    if existing.data:
+        for doc in existing.data:
+            # extract path from URL
+            url_path = doc["document_url"].split("/user-documents/")[-1]
+            supabase.storage.from_("user-documents").remove([url_path])
+
+        # delete from table
+        supabase.table("user_documents").delete().eq("user_id", user_id).execute()
+
+    # 2. Upload new file
     timestamp = datetime.utcnow().isoformat().replace(":", "-")
     storage_path = f"{user_id}/{timestamp}_{filename}"
 
@@ -67,7 +79,6 @@ async def upload_document(
 
     if not res:
         raise HTTPException(status_code=500, detail="Failed to upload document")
-
 
     public_url = f"{SUPABASE_URL}/storage/v1/object/public/user-documents/{storage_path}"
 
