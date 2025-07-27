@@ -45,13 +45,11 @@ export default function MaintenanceTicketsPage() {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
   useEffect(() => {
-    const userId = sessionStorage.getItem("userId")
-
-    const fetchTickets = async () => {
+   const fetchTickets = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/maintenance/assigned`, {
           headers: {
-            "X-User-Id": userId || "",
+            "X-User-Id": sessionStorage.getItem("userId") || "",
             "Content-Type": "application/json",
           },
         })

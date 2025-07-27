@@ -1,17 +1,17 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 
 class MaintenanceTicketCreate(BaseModel):
     property_id: str
     issue_type: str
     description: Optional[str]
-    priority: str  # Low, Medium, High
-
+    priority: Literal["Low", "Medium", "High"] 
+    
 class MaintenanceTicketUpdate(BaseModel):
-    status: Optional[str]  # Open, In Progress, Closed
+    status: Optional[str]  
     description: Optional[str]
-    priority: Optional[str]
+    priority: Optional[Literal["Low", "Medium", "High"]]
 
 class MaintenanceTicketResponse(BaseModel):
     id: str

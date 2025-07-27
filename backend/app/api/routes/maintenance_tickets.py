@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, HTTPException, Depends, Request
 from supabase import Client
 from typing import List
@@ -130,17 +131,66 @@ def get_raised_tickets(
     return tickets
 
 @router.patch("/{ticket_id}", response_model=MaintenanceTicketResponse)
-def update_ticket_status(
+async def update_ticket_status(
     ticket_id: str,
-    update_data: MaintenanceTicketUpdate,
     request: Request,
     supabase: Client = Depends(get_supabase)
-):
+):  
     """Update ticket status - only assigned provider can update"""
+    
     user_id = request.headers.get("X-User-Id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    # Parse and validate request data
+    try:
+        update_data = await request.json()
+        if not update_data:
+            raise HTTPException(status_code=422, detail="Empty request body")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+
+    # Validate and normalize fields
+    allowed_fields = ['status', 'description', 'priority']
+    update_dict = {}
+    
+    for key, value in update_data.items():
+        if key not in allowed_fields:
+            continue
+            
+        if key == 'status':
+            if value not in ["Open", "In Progress", "Closed"]:
+                status_map = {
+                    'open': 'Open',
+                    'in progress': 'In Progress',
+                    'inprogress': 'In Progress', 
+                    'closed': 'Closed'
+                }
+                normalized_status = status_map.get(value.lower() if isinstance(value, str) else str(value).lower())
+                if not normalized_status:
+                    raise HTTPException(
+                        status_code=422, 
+                        detail=f"Invalid status '{value}'. Must be: Open, In Progress, or Closed"
+                    )
+                update_dict[key] = normalized_status
+            else:
+                update_dict[key] = value
+                
+        elif key == 'priority':
+            if value not in ["Low", "Medium", "High"]:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Invalid priority '{value}'. Must be: Low, Medium, or High"
+                )
+            update_dict[key] = value
+            
+        else:  # description
+            update_dict[key] = value
+
+    if not update_dict:
+        raise HTTPException(status_code=422, detail="No valid fields to update")
+
+    # Verify ticket exists and user has permission
     ticket = supabase.table("maintenance_tickets") \
         .select("*") \
         .eq("id", ticket_id) \
@@ -150,19 +200,26 @@ def update_ticket_status(
     if not ticket.data:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Only the assigned provider can update the ticket
     if ticket.data["assigned_to"] != user_id:
         raise HTTPException(
             status_code=403, 
             detail="Only the assigned provider can update this ticket"
         )
 
-    updated = supabase.table("maintenance_tickets") \
-        .update(update_data.dict(exclude_unset=True)) \
-        .eq("id", ticket_id) \
-        .execute()
-
-    return updated.data[0]
+    # Update ticket
+    try:
+        updated = supabase.table("maintenance_tickets") \
+            .update(update_dict) \
+            .eq("id", ticket_id) \
+            .execute()
+        
+        if not updated.data:
+            raise Exception("No data returned from update")
+            
+        return updated.data[0]
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 @router.get("/subscription-properties", response_model=List[dict])
 def get_subscription_properties(
