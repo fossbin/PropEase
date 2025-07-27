@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface AnalyticsData {
   total_properties: number;
@@ -18,6 +19,7 @@ interface AnalyticsData {
 }
 
 export default function AdminAnalyticsPage() {
+  useAuthRedirect();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 

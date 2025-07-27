@@ -21,8 +21,7 @@ import {
   Heart,
   ArrowLeft,
 } from "lucide-react"
-// Remove this import line:
-// import Image from "next/image"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Property {
   id: string
@@ -59,6 +58,7 @@ interface Review {
 }
 
 export default function PropertyDetails() {
+  useAuthRedirect()
   const { id } = useParams()
   const [property, setProperty] = useState<Property | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])

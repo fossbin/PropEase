@@ -20,6 +20,7 @@ import {
   Heart,
   Share2,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Property {
   id: string
@@ -39,6 +40,7 @@ interface Property {
 }
 
 export default function ExplorePage() {
+  useAuthRedirect()
   const [properties, setProperties] = useState<Property[]>([])
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([])
   const [filters, setFilters] = useState({

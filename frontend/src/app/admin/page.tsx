@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useRouter } from 'next/navigation';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 export default function AdminDashboardHome() {
+  useAuthRedirect();
   const [stats, setStats] = useState({
     pendingProperties: 0,
     openSupportTickets: 0,

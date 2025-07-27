@@ -20,6 +20,7 @@ import {
   Loader2,
   FileText,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Ticket {
   id: string
@@ -33,6 +34,7 @@ interface Ticket {
 }
 
 export default function MaintenanceTicketsPage() {
+  useAuthRedirect();
   const [groupedTickets, setGroupedTickets] = useState<Record<string, Ticket[]>>({})
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)

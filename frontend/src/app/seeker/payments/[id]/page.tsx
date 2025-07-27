@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, CalendarCheck, Info } from 'lucide-react';
 import { format } from 'date-fns';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface PaymentDetail {
   id: string;
@@ -23,6 +24,7 @@ interface PaymentDetail {
 }
 
 export default function PaymentDetailPage() {
+  useAuthRedirect();
   const { id } = useParams();
   const router = useRouter();
   const [detail, setDetail] = useState<PaymentDetail | null>(null);

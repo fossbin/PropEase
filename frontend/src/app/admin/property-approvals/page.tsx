@@ -30,6 +30,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Property {
   id: string
@@ -45,6 +46,7 @@ interface Property {
 }
 
 export default function PropertyApprovalsPage() {
+  useAuthRedirect()
   const [pendingProperties, setPendingProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")

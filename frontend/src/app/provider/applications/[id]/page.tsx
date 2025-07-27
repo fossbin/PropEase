@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface Document {
   id: string;
@@ -46,6 +47,7 @@ interface UserProfile {
 }
 
 export default function ApplicationDetailPage() {
+  useAuthRedirect()
   const { id } = useParams();
   const [application, setApplication] = useState<Application | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);

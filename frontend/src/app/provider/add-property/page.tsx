@@ -15,10 +15,12 @@ import LocationPicker from "@/components/LocationPicker"
 import imageCompression from "browser-image-compression"
 import Script from "next/script"
 import { Home, MapPin, Camera, FileText, IndianRupee, Users, X, Upload, Loader2, CheckCircle } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 const userID = typeof window !== "undefined" ? sessionStorage.getItem("userId") || "" : ""
 
 export default function AddPropertyPage() {
+  useAuthRedirect()
   const router = useRouter()
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
   const [isSubmitting, setIsSubmitting] = useState(false)

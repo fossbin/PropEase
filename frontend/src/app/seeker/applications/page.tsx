@@ -44,6 +44,7 @@ import {
   Building,
   User,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Application {
   id: string
@@ -569,6 +570,7 @@ function ApplicationsPage() {
 }
 
 export default function ApplicationsPageWrapper() {
+  useAuthRedirect()
   return (
     <Suspense fallback={<div className="p-6">Loading...</div>}>
       <ApplicationsPage />

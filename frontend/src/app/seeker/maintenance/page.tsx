@@ -51,6 +51,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Property {
   id: string
@@ -111,6 +112,7 @@ const statusConfig = {
 }
 
 export default function MaintenancePage() {
+  useAuthRedirect()
   const [activeTab, setActiveTab] = useState("submit") // "submit" or "track"
   const [properties, setProperties] = useState<Property[]>([])
   const [tickets, setTickets] = useState<MaintenanceTicket[]>([])

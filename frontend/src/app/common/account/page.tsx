@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useActionState, useEffect, useState } from "react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,7 @@ interface Transaction {
 }
 
 export default function AccountPage() {
+  useAuthRedirect()
   const [balance, setBalance] = useState<number>(0)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [amount, setAmount] = useState<string>("")

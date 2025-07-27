@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient'; // Make sure this is correctly set up
+import { supabase } from '@/lib/supabaseClient'; 
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -48,6 +48,8 @@ export default function LoginPage() {
       }
 
       if(data.user.email === "admin@gmail.com"){
+        sessionStorage.setItem('userRole', 'admin');
+        sessionStorage.setItem('userId', data.user.id);
         router.push('/admin/');
       } else {
         sessionStorage.setItem('userRole', '');

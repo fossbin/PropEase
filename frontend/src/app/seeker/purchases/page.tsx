@@ -36,6 +36,7 @@ import {
   Eye,
   Ban,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface PurchaseItem {
   id: string
@@ -53,6 +54,7 @@ interface PurchaseItem {
 }
 
 export default function MyPurchasesPage() {
+  useAuthRedirect();
   const [purchases, setPurchases] = useState<PurchaseItem[]>([])
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState<string | null>(null)

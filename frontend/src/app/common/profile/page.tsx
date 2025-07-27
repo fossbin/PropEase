@@ -26,6 +26,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -37,6 +38,7 @@ interface Profile {
 }
 
 export default function UserProfilePage() {
+  useAuthRedirect()
   const [profile, setProfile] = useState<Profile>({
     name: "",
     email: "",

@@ -46,6 +46,7 @@ import {
   XCircle,
   Eye,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface User {
   id: string
@@ -66,6 +67,7 @@ interface UserDocument {
 }
 
 export default function AdminUsersPage() {
+  useAuthRedirect()
   const [users, setUsers] = useState<User[]>([])
   const [userDocuments, setUserDocuments] = useState<Record<string, UserDocument[]>>({})
   const [loading, setLoading] = useState(true)

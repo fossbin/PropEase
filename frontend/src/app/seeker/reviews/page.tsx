@@ -20,6 +20,7 @@ import {
   Calendar,
   ThumbsUp,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface ReviewableProperty {
   property_id: string
@@ -34,6 +35,7 @@ interface ReviewableProperty {
 }
 
 export default function SeekerReviewsPage() {
+  useAuthRedirect();
   const [properties, setProperties] = useState<ReviewableProperty[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState<string | null>(null)

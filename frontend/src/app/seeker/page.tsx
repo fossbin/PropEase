@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface NearbyProperty {
   id: string;
@@ -16,6 +17,7 @@ interface NearbyProperty {
 }
 
 export default function SeekerHomePage() {
+  useAuthRedirect();
   const [properties, setProperties] = useState<NearbyProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();

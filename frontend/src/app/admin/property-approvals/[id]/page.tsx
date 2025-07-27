@@ -36,6 +36,7 @@ import {
   Mail,
   ShieldCheck,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface PropertyDocument {
   id: string
@@ -92,6 +93,7 @@ interface UserDocument {
 }
 
 export default function PropertyDetailPage() {
+  useAuthRedirect()
   const { id } = useParams()
   const router = useRouter()
   const [property, setProperty] = useState<PropertyDetail | null>(null)

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DollarSign, Loader2, Clock, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabaseClient';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface Payment {
   id?: string;
@@ -27,6 +28,7 @@ interface Payment {
 }
 
 export default function PaymentsPage() {
+  useAuthRedirect();
   const router = useRouter();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);

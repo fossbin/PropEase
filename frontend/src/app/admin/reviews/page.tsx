@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface Review {
   id: string;
@@ -14,6 +15,7 @@ interface Review {
 }
 
 export default function AdminReviewsPage() {
+  useAuthRedirect();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 

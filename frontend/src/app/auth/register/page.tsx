@@ -193,7 +193,7 @@ export default function RegisterPage() {
 
               <button
                 type="submit"
-                disabled={isLoading || !acceptTerms}
+                disabled={isLoading }
                 className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-4 px-6 rounded-xl font-semibold text-lg hover:shadow-2xl hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
               >
                 {isLoading ? (

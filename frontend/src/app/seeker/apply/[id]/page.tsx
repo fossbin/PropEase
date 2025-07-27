@@ -40,6 +40,7 @@ import {
   Clock,
   Shield,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Property {
   id: string
@@ -64,6 +65,7 @@ interface UserDocument {
 }
 
 export default function ApplyPropertyPage() {
+  useAuthRedirect()
   const { id } = useParams()
   const router = useRouter()
   const [property, setProperty] = useState<Property | null>(null)

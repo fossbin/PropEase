@@ -27,6 +27,7 @@ import {
   Send,
   TicketIcon,
 } from "lucide-react"
+import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface Ticket {
   id: string
@@ -39,6 +40,7 @@ interface Ticket {
 }
 
 export default function CommonSupportPage() {
+  useAuthRedirect()
   const [formData, setFormData] = useState({
     subject: "",
     priority: "Medium",

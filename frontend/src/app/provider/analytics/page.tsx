@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 
 interface PropertyAnalytics {
   title: string;
@@ -13,6 +14,7 @@ interface PropertyAnalytics {
 }
 
 export default function ProviderAnalyticsPage() {
+  useAuthRedirect()
   const [data, setData] = useState<PropertyAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
 
