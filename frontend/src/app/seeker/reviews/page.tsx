@@ -19,8 +19,8 @@ import {
   Home,
   Calendar,
   ThumbsUp,
+  Edit
 } from "lucide-react"
-import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 interface ReviewableProperty {
   property_id: string
@@ -35,7 +35,6 @@ interface ReviewableProperty {
 }
 
 export default function SeekerReviewsPage() {
-  useAuthRedirect();
   const [properties, setProperties] = useState<ReviewableProperty[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState<string | null>(null)
@@ -45,43 +44,53 @@ export default function SeekerReviewsPage() {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
   useEffect(() => {
-    const fetchReviewables = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/seeker/reviewables`, {
-          headers: {
-            "X-User-Id": sessionStorage.getItem("userId") || "",
-            "Content-Type": "application/json",
-          },
-        })
-        const data = await res.json()
-        if (Array.isArray(data)) {
-          const filtered = data.filter((p) => ["Lease", "PG"].includes(p.transaction_type))
-          setProperties(filtered)
-
-          // Initialize review state
-          const initialReviews: { [key: string]: { rating: number; comment: string } } = {}
-          filtered.forEach((p) => {
-            initialReviews[p.property_id] = {
-              rating: p.rating || 0,
-              comment: p.comment || "",
-            }
-          })
-          setReviews(initialReviews)
-        } else {
-          console.error("Expected an array, got:", data)
-          setProperties([])
-        }
-      } catch (err) {
-        console.error("Failed to fetch reviewable properties:", err)
-        setProperties([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchReviewables()
   }, [])
 
+  const fetchReviewables = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/seeker/reviewables`, {
+        headers: {
+          "X-User-Id": sessionStorage.getItem("userId") || "", 
+          "Content-Type": "application/json",
+        },
+      })
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        const filtered = data.filter((p) => ["Lease", "PG"].includes(p.transaction_type))
+        setProperties(filtered)
+
+        // Initialize review state with existing data
+        const initialReviews: { [key: string]: { rating: number; comment: string } } = {}
+        filtered.forEach((p) => {
+          initialReviews[p.property_id] = {
+            rating: p.rating || 0,
+            comment: p.comment || "",
+          }
+        })
+        setReviews(initialReviews)
+
+        // Initialize submit status for existing reviews
+        const initialStatus: { [key: string]: "success" | "error" | null } = {}
+        filtered.forEach((p) => {
+          if (p.rating && p.rating > 0) {
+            initialStatus[p.property_id] = "success"
+          } else {
+            initialStatus[p.property_id] = null
+          }
+        })
+        setSubmitStatus(initialStatus)
+      } else {
+        console.error("Expected an array, got:", data)
+        setProperties([])
+      }
+    } catch (err) {
+      console.error("Failed to fetch reviewable properties:", err)
+      setProperties([])
+    } finally {
+      setLoading(false)
+    }
+  }
   const handleSubmit = async (property_id: string) => {
     const review = reviews[property_id]
     if (!review || review.rating < 1 || review.rating > 5) return
@@ -90,15 +99,21 @@ export default function SeekerReviewsPage() {
     setSubmitStatus({ ...submitStatus, [property_id]: null })
 
     try {
-      await fetch(`${API_BASE_URL}/api/seeker/review/${property_id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/seeker/review/${property_id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-User-Id": sessionStorage.getItem("userId") || "",
+          "X-User-Id": sessionStorage.getItem("userId") || "", 
         },
         body: JSON.stringify({ rating: review.rating, comment: review.comment }),
       })
-      setSubmitStatus({ ...submitStatus, [property_id]: "success" })
+
+      if (response.ok) {
+        setSubmitStatus({ ...submitStatus, [property_id]: "success" })
+        fetchReviewables() 
+      } else {
+        throw new Error('Failed to submit review')
+      }
     } catch (err) {
       console.error("Failed to submit review:", err)
       setSubmitStatus({ ...submitStatus, [property_id]: "error" })
@@ -115,6 +130,11 @@ export default function SeekerReviewsPage() {
         [field]: value,
       },
     })
+    
+    // Reset submit status when user makes changes to an already submitted review
+    if (submitStatus[property_id] === "success") {
+      setSubmitStatus({ ...submitStatus, [property_id]: null })
+    }
   }
 
   const renderStarRating = (property_id: string, currentRating: number) => {
@@ -172,6 +192,23 @@ export default function SeekerReviewsPage() {
     })
   }
 
+  const hasReviewChanged = (property_id: string) => {
+    const property = properties.find(p => p.property_id === property_id)
+    const currentReview = reviews[property_id]
+    
+    if (!property || !currentReview) return false
+    
+    return (
+      currentReview.rating !== (property.rating || 0) ||
+      currentReview.comment !== (property.comment || "")
+    )
+  }
+
+  const isReviewSubmitted = (property_id: string) => {
+    const property = properties.find(p => p.property_id === property_id)
+    return property?.rating && property.rating > 0
+  }
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto p-6">
@@ -213,7 +250,7 @@ export default function SeekerReviewsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {Object.values(submitStatus).filter((status) => status === "success").length}
+              {properties.filter(p => p.rating && p.rating > 0).length}
             </div>
           </CardContent>
         </Card>
@@ -227,8 +264,10 @@ export default function SeekerReviewsPage() {
             <div className="text-2xl font-bold text-yellow-600">
               {properties.length > 0
                 ? (
-                    Object.values(reviews).reduce((sum, review) => sum + (review.rating || 0), 0) /
-                      Object.values(reviews).filter((review) => review.rating > 0).length || 0
+                    properties
+                      .filter(p => p.rating && p.rating > 0)
+                      .reduce((sum, p) => sum + (p.rating || 0), 0) /
+                      Math.max(properties.filter(p => p.rating && p.rating > 0).length, 1)
                   ).toFixed(1)
                 : "0.0"}
             </div>
@@ -285,13 +324,23 @@ export default function SeekerReviewsPage() {
             const review = reviews[property.property_id] || { rating: 0, comment: "" }
             const status = submitStatus[property.property_id]
             const isSubmitting = submitting === property.property_id
+            const reviewSubmitted = isReviewSubmitted(property.property_id)
+            const reviewChanged = hasReviewChanged(property.property_id)
 
             return (
-              <Card key={property.property_id} className="border-l-4 border-l-blue-500">
+              <Card key={property.property_id} className={`border-l-4 ${reviewSubmitted && !reviewChanged ? 'border-l-green-500' : 'border-l-blue-500'}`}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-2">
-                      <CardTitle className="text-xl">{property.title}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-xl">{property.title}</CardTitle>
+                        {reviewSubmitted && (
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Reviewed
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">
                           {getTransactionTypeIcon(property.transaction_type)}
@@ -327,11 +376,11 @@ export default function SeekerReviewsPage() {
                   )}
 
                   {/* Status Alert */}
-                  {status === "success" && (
+                  {status === "success" && !reviewChanged && (
                     <Alert className="border-green-200 bg-green-50">
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       <AlertDescription className="text-green-800">
-                        Thank you! Your review has been submitted successfully.
+                        {reviewSubmitted ? "Your review has been updated successfully!" : "Thank you! Your review has been submitted successfully."}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -340,6 +389,15 @@ export default function SeekerReviewsPage() {
                     <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription>Failed to submit review. Please try again.</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {reviewChanged && (
+                    <Alert className="border-blue-200 bg-blue-50">
+                      <Edit className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-blue-800">
+                        You have unsaved changes to your review.
+                      </AlertDescription>
                     </Alert>
                   )}
 
@@ -370,18 +428,24 @@ export default function SeekerReviewsPage() {
                   {/* Submit Button */}
                   <Button
                     onClick={() => handleSubmit(property.property_id)}
-                    disabled={isSubmitting || review.rating < 1 || review.rating > 5 || status === "success"}
+                    disabled={isSubmitting || review.rating < 1 || review.rating > 5}
                     className="w-full"
+                    variant={reviewChanged ? "default" : status === "success" ? "secondary" : "default"}
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Submitting Review...
+                        {reviewSubmitted ? "Updating Review..." : "Submitting Review..."}
+                      </>
+                    ) : reviewChanged ? (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        {reviewSubmitted ? "Update Review" : "Submit Review"}
                       </>
                     ) : status === "success" ? (
                       <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Review Submitted
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Review
                       </>
                     ) : (
                       <>

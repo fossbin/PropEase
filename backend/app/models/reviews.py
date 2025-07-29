@@ -3,7 +3,6 @@ from typing import Optional
 from datetime import datetime
 
 class ReviewCreate(BaseModel):
-    property_id: str
     rating: int = Field(..., ge=1, le=5)
     comment: Optional[str] = None
 
