@@ -291,6 +291,47 @@ def upload_pdf_to_supabase(supabase, bucket: str, path: str, pdf_bytes: bytes) -
     return f"{bucket}/{path}"
 
 
+def reject_other_applications(supabase, property_id: str, approved_application_id: str, transaction_type: str):
+    """Helper function to reject other applications for a property"""
+    try:
+        rejection_msg = f"Another application was approved for this {transaction_type.lower()}."
+        
+        reject_res = supabase.table("applications") \
+            .update({
+                "status": "Rejected",
+                "message": rejection_msg
+            }) \
+            .eq("property_id", property_id) \
+            .neq("id", approved_application_id) \
+            .in_("status", ["Pending", "Under Review"]) \
+            .execute()
+        
+        rejected_count = len(reject_res.data) if reject_res.data else 0
+        print(f"Rejected {rejected_count} other applications for property {property_id}")
+        
+        return rejected_count
+    except Exception as e:
+        print(f"Error rejecting other applications: {str(e)}")
+        return 0
+
+
+def update_property_status(supabase, property_id: str, new_status: str):
+    """Helper function to update property status"""
+    try:
+        prop_update_res = supabase.table("properties") \
+            .update({"status": new_status}) \
+            .eq("id", property_id) \
+            .execute()
+        
+        if prop_update_res.data:
+            print(f"Property {property_id} status updated to: {new_status}")
+            return True
+        else:
+            print(f"Failed to update property {property_id} status")
+            return False
+    except Exception as e:
+        print(f"Error updating property status: {str(e)}")
+        return False
 
 
 @router.patch("/{application_id}")
@@ -312,6 +353,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
 
         updated_app = update_res.data[0]
 
+        # Handle approval logic
         if payload.get("status") == "Approved":
             app = updated_app
             property_res = supabase.table("properties").select("*").eq("id", app["property_id"]).limit(1).execute()
@@ -330,6 +372,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
             
             today = date.today()
 
+            # Handle Lease Applications
             if prop_type == "Lease" and app.get("lease_start") and app.get("lease_end"):
                 lease_id = str(uuid4())
                 bucket = "lease-documents"
@@ -360,7 +403,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     "last_paid_month": None,
                     "late_fee": "0.00",  # String for DECIMAL
                     "status": "Pending Payment",
-                    "application_id": str(application_id)  # Add missing field
+                    "application_id": str(application_id)
                 }
                 
                 lease_result = supabase.table("leases").insert(lease_payload).execute()
@@ -370,8 +413,12 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     raise HTTPException(status_code=500, detail="Failed to create lease record")
 
                 print(f"Lease created successfully: {lease_result.data[0]['id']}")
+                
+                # Reject other applications and update property status
+                reject_other_applications(supabase, app["property_id"], str(application_id), "Lease")
+                update_property_status(supabase, app["property_id"], "Partially Booked")
 
-
+            # Handle Sale Applications
             elif prop_type == "Sale":
                 account_res = supabase.table("accounts").select("balance").eq("user_id", app["applicant_id"]).limit(1).execute()
                 if not account_res.data:
@@ -403,7 +450,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     "sale_price": str(price),  # Convert to string for DECIMAL
                     "deed_file": file_path,
                     "status": "Pending Payment",
-                    "application_id": str(application_id)  # Add missing field
+                    "application_id": str(application_id)
                 }
                 
                 sale_result = supabase.table("sales").insert(sale_payload).execute()
@@ -411,7 +458,12 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     print(f"Sale insert failed: {sale_result}")
                     raise HTTPException(status_code=500, detail="Failed to create sale record")
                 print(f"Sale created successfully: {sale_result.data[0]['id']}")
+                
+                # Reject other applications and update property status
+                reject_other_applications(supabase, app["property_id"], str(application_id), "Sale")
+                update_property_status(supabase, app["property_id"], "Partially Booked")
 
+            # Handle PG Applications
             elif prop_type == "PG" and app.get("subscription_start") and app.get("subscription_end"):
                 sub_id = str(uuid4())
                 bucket = "pg-documents"
@@ -442,7 +494,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     "is_active": True,
                     "agreement_file": file_path,
                     "status": "Pending Payment",
-                    "application_id": str(application_id)  # Add missing field
+                    "application_id": str(application_id)
                 }
                 
                 sub_result = supabase.table("subscriptions").insert(sub_payload).execute()
@@ -451,21 +503,7 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     raise HTTPException(status_code=500, detail="Failed to create subscription record")
                 print(f"Subscription created successfully: {sub_result.data[0]['id']}")
 
-            
-            if prop_type in ["Sale", "Lease"]:
-                rejection_msg = "Another application was approved."
-                reject_res = supabase.table("applications") \
-                    .update({
-                        "status": "Rejected",
-                        "message": rejection_msg
-                    }) \
-                    .eq("property_id", app["property_id"]) \
-                    .neq("id", str(application_id)) \
-                    .neq("status", "Rejected") \
-                    .execute()
-
-            elif prop_type == "PG":
-                # Get max occupancy of PG property
+                # Handle PG occupancy management
                 max_resp = supabase.table("properties") \
                     .select("max_occupancy") \
                     .eq("id", app["property_id"]) \
@@ -474,14 +512,18 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
 
                 max_occupancy = max_resp.data[0]["max_occupancy"] if max_resp.data else 0
 
-                # Count current active subscriptions
+                # Count current active subscriptions (including the one just created)
                 active_subs = supabase.table("subscriptions") \
                     .select("id") \
                     .eq("property_id", app["property_id"]) \
                     .eq("is_active", True) \
                     .execute()
 
-                if len(active_subs.data or []) >= max_occupancy:
+                current_occupancy = len(active_subs.data or [])
+                
+                # Update property status based on occupancy
+                if current_occupancy >= max_occupancy:
+                    # Property is fully occupied, reject all other pending applications
                     rejection_msg = "Occupancy full. No more applications accepted."
                     reject_pg = supabase.table("applications") \
                         .update({
@@ -490,9 +532,16 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                         }) \
                         .eq("property_id", app["property_id"]) \
                         .neq("id", str(application_id)) \
-                        .neq("status", "Rejected") \
+                        .in_("status", ["Pending", "Under Review"]) \
                         .execute()
-
+                    
+                    # Update property status to fully booked
+                    update_property_status(supabase, app["property_id"], "Booked")
+                    print(f"PG property {app['property_id']} is now fully occupied ({current_occupancy}/{max_occupancy})")
+                else:
+                    # Property is partially occupied
+                    update_property_status(supabase, app["property_id"], "Partially Booked")
+                    print(f"PG property {app['property_id']} is partially occupied ({current_occupancy}/{max_occupancy})")
 
         return updated_app
     
