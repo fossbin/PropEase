@@ -49,8 +49,8 @@ export default function Navbar() {
 
   const providerLinks = [
     { label: "Dashboard", href: "/provider", icon: Home },
-    { label: "Add Property", href: "/provider/add-property", icon: Plus },
     { label: "My Properties", href: "/provider/my-properties", icon: FileText },
+    { label: "Add Property", href: "/provider/add-property", icon: Plus },
     { label: "Applications", href: "/provider/applications", icon: Inbox },
     { label: "Bookings", href: "/provider/bookings", icon: BookUser },
     { label: "Maintenance", href: "/provider/maintenance", icon: Wrench },
@@ -58,7 +58,7 @@ export default function Navbar() {
   ]
 
   const seekerLinks = [
-  // { label: "Dashboard", href: "/seeker", icon: Home },
+  { label: "Dashboard", href: "/seeker", icon: Home },
   { label: "Explore", href: "/seeker/explore", icon: Search },
   { label: "Applications", href: "/seeker/applications", icon: FileText },
   { label: "My Purchases", href: "/seeker/purchases", icon: Inbox },
@@ -84,7 +84,7 @@ export default function Navbar() {
                 <span className="font-bold text-lg text-gray-900">PropEase</span>
                 {role && (
                   <div className="text-xs text-gray-500 capitalize -mt-1">
-                    {role === "provider" ? "Landlord Portal" : "Tenant Portal"}
+                    {role === "provider" ? "Provider Portal" : "Seeker Portal"}
                   </div>
                 )}
               </div>
