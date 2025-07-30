@@ -19,6 +19,8 @@ import {
   List,
   Heart,
   Share2,
+  Filter,
+  X,
 } from "lucide-react"
 import useAuthRedirect from "@/hooks/useAuthRedirect"
 
@@ -55,6 +57,7 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [sortBy, setSortBy] = useState("newest")
+  const [showFilters, setShowFilters] = useState(false)
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
   const router = useRouter()
@@ -69,7 +72,12 @@ export default function ExplorePage() {
           ...(filters.minRating && { minRating: filters.minRating }),
           ...(filters.transaction_type && { transaction_type: filters.transaction_type }),
         })
-        const res = await fetch(`${API_BASE_URL}/api/seeker/explore?${query.toString()}`)
+        const res = await fetch(`${API_BASE_URL}/api/seeker/explore?${query.toString()}`,{
+          headers: {
+            "Content-Type": "application/json",
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+          },
+        })
         const data = await res.json()
         setProperties(data)
       } catch (err) {
@@ -136,16 +144,19 @@ export default function ExplorePage() {
     })
   }
 
+  const hasActiveFilters = Object.values(filters).some(value => value !== "")
+
   const getTransactionBadge = (type: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; color: string }> = {
-      Sale: { variant: "default", color: "bg-green-100 text-green-800" },
-      Lease: { variant: "secondary", color: "bg-blue-100 text-blue-800" },
-      PG: { variant: "outline", color: "bg-purple-100 text-purple-800" },
+      Sale: { variant: "default", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      Lease: { variant: "secondary", color: "bg-blue-50 text-blue-700 border-blue-200" },
+      PG: { variant: "outline", color: "bg-purple-50 text-purple-700 border-purple-200" },
+      Subscription: { variant: "outline", color: "bg-purple-50 text-purple-700 border-purple-200" },
     }
     const config = variants[type] || { variant: "outline", color: "" }
     return (
-      <Badge variant={config.variant} className={config.color}>
-        {type}
+      <Badge variant={config.variant} className={`${config.color} text-xs font-medium border`}>
+        {type === "Subscription" ? "PG" : type}
       </Badge>
     )
   }
@@ -158,75 +169,84 @@ export default function ExplorePage() {
 
     if (viewMode === "list") {
       return (
-        <Card className="hover:shadow-md transition-shadow">
+        <Card className="hover:shadow-lg transition-all duration-200 border-0 shadow-sm bg-white/80 backdrop-blur-sm">
           <CardContent className="p-0">
             <div className="flex">
-              <div className="w-48 h-32 flex-shrink-0">
+              <div className="w-56 h-36 flex-shrink-0 relative overflow-hidden">
                 {property.photos?.[0] ? (
                   <img
                     src={property.photos[0] || "/placeholder.svg"}
                     alt={property.title}
-                    className="w-full h-full object-cover rounded-l-lg"
+                    className="w-full h-full object-cover rounded-l-lg transition-transform duration-300 hover:scale-105"
                   />
                 ) : (
-                  <div className="w-full h-full bg-gray-100 rounded-l-lg flex items-center justify-center">
-                    <Home className="w-8 h-8 text-gray-400" />
+                  <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-l-lg flex items-center justify-center">
+                    <Home className="w-10 h-10 text-gray-400" />
                   </div>
                 )}
+                {property.verified && (
+                  <Badge className="absolute top-2 left-2 bg-emerald-500 text-white text-xs px-2 py-1 shadow-sm">
+                    ✓ Verified
+                  </Badge>
+                )}
               </div>
-              <div className="flex-1 p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-semibold text-lg mb-1">{property.title}</h3>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                      <MapPin className="w-4 h-4" />
+              <div className="flex-1 p-5">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-xl mb-2 text-gray-900 line-clamp-1">{property.title}</h3>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                      <MapPin className="w-4 h-4 text-gray-400" />
                       <span>{property.city}</span>
-                      {property.verified && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                          Verified
-                        </Badge>
-                      )}
+                      {property.state && <span className="text-gray-400">• {property.state}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <div className="flex gap-1 ml-4">
+                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-red-50 hover:text-red-600 transition-colors">
                       <Heart className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-blue-50 hover:text-blue-600 transition-colors">
                       <Share2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="flex items-center gap-1">
-                    <Home className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm">{property.type}</span>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-1 text-gray-700">
+                    <Home className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm font-medium">{property.type}</span>
                   </div>
                   {getTransactionBadge(property.transaction_type)}
                   {property.rating && (
                     <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{property.rating.toFixed(1)}</span>
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span className="text-sm font-semibold text-gray-800">{property.rating.toFixed(1)}</span>
                     </div>
                   )}
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <IndianRupee className="w-4 h-4" />
-                    <span className="text-lg font-bold">{property.price.toLocaleString()}</span>
-                    {property.is_negotiable && <span className="text-xs text-muted-foreground">(Negotiable)</span>}
+                    <IndianRupee className="w-5 h-5 text-gray-600" />
+                    <span className="text-xl font-bold text-gray-900">{property.price.toLocaleString()}</span>
+                    {property.is_negotiable && (
+                      <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-1 rounded-full ml-2">
+                        Negotiable
+                      </span>
+                    )}
                   </div>
                   {isPG && (
-                    <div className="flex items-center gap-1 text-sm text-blue-600">
+                    <div className="flex items-center gap-1 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
                       <Users className="w-4 h-4" />
-                      <span>
+                      <span className="font-medium">
                         {occupancy}/{capacity} • {available} available
                       </span>
                     </div>
                   )}
-                  <Button size="sm" onClick={() => router.push(`/seeker/explore/${property.id}`)}>
+                  <Button 
+                    size="sm" 
+                    onClick={() => router.push(`/seeker/explore/${property.id}`)}
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-sm"
+                  >
                     View Details
                   </Button>
                 </div>
@@ -238,80 +258,96 @@ export default function ExplorePage() {
     }
 
     return (
-      <Card className="hover:shadow-md transition-shadow group">
+      <Card className="hover:shadow-xl transition-all duration-300 group border-0 shadow-md bg-white/90 backdrop-blur-sm overflow-hidden">
         <CardContent className="p-0">
-          <div className="relative">
+          <div className="relative overflow-hidden">
             {property.photos?.[0] ? (
               <img
                 src={property.photos[0] || "/placeholder.svg"}
                 alt={property.title}
-                className="w-full h-48 object-cover rounded-t-lg"
+                className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-110"
               />
             ) : (
-              <div className="w-full h-48 bg-gray-100 rounded-t-lg flex items-center justify-center">
-                <Home className="w-12 h-12 text-gray-400" />
+              <div className="w-full h-52 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                <Home className="w-16 h-16 text-gray-400" />
               </div>
             )}
-            <div className="absolute top-3 right-3 flex gap-1">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute top-3 right-3 flex gap-2">
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-8 w-8 p-0 bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-red-600"
               >
                 <Heart className="w-4 h-4" />
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-8 w-8 p-0 bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-blue-600"
               >
                 <Share2 className="w-4 h-4" />
               </Button>
             </div>
-            {property.verified && <Badge className="absolute top-3 left-3 bg-green-100 text-green-800">Verified</Badge>}
+            {property.verified && (
+              <Badge className="absolute top-3 left-3 bg-emerald-500 text-white text-xs px-2 py-1 shadow-sm">
+                ✓ Verified
+              </Badge>
+            )}
           </div>
 
-          <div className="p-4 space-y-3">
+          <div className="p-5 space-y-4">
             <div>
-              <h3 className="font-semibold text-lg mb-1 line-clamp-1">{property.title}</h3>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4" />
+              <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-gray-900 group-hover:text-blue-700 transition-colors">
+                {property.title}
+              </h3>
+              <div className="flex items-center gap-1 text-sm text-gray-600">
+                <MapPin className="w-4 h-4 text-gray-400" />
                 <span>{property.city}</span>
+                {property.state && <span className="text-gray-400">• {property.state}</span>}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <Home className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">{property.type}</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 text-gray-700">
+                <Home className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-medium">{property.type}</span>
               </div>
               {getTransactionBadge(property.transaction_type)}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <IndianRupee className="w-4 h-4" />
-                <span className="text-lg font-bold">{property.price.toLocaleString()}</span>
-                {property.is_negotiable && <span className="text-xs text-muted-foreground">(Negotiable)</span>}
-              </div>
               {property.rating && (
                 <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  <span className="text-sm font-medium">{property.rating.toFixed(1)}</span>
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <span className="text-sm font-semibold text-gray-800">{property.rating.toFixed(1)}</span>
                 </div>
               )}
             </div>
 
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <IndianRupee className="w-5 h-5 text-gray-600" />
+                <span className="text-xl font-bold text-gray-900">{property.price.toLocaleString()}</span>
+                {property.is_negotiable && (
+                  <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-1 rounded-full ml-2">
+                    Negotiable
+                  </span>
+                )}
+              </div>
+            </div>
+
             {isPG && (
-              <div className="flex items-center gap-1 text-sm text-blue-600">
+              <div className="flex items-center gap-1 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
                 <Users className="w-4 h-4" />
-                <span>
+                <span className="font-medium">
                   {occupancy}/{capacity} occupied • {available} available
                 </span>
               </div>
             )}
 
-            <Button className="w-full" size="sm" onClick={() => router.push(`/seeker/explore/${property.id}`)}>
+            <Button 
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-sm transition-all duration-200" 
+              size="sm" 
+              onClick={() => router.push(`/seeker/explore/${property.id}`)}
+            >
               View Details
             </Button>
           </div>
@@ -321,159 +357,220 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Explore Properties</h1>
-          <p className="text-muted-foreground mt-1">
-            Discover your perfect home from {properties.length} available properties
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-700 to-purple-700 bg-clip-text text-transparent mb-2">
+              Explore Properties
+            </h1>
+            <p className="text-gray-600 text-lg">
+              Discover your perfect home from <span className="font-semibold text-blue-600">{properties.length}</span> available properties
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant={viewMode === "grid" ? "default" : "outline"} 
+              size="sm" 
+              onClick={() => setViewMode("grid")}
+              className={viewMode === "grid" ? "bg-blue-600 hover:bg-blue-700" : ""}
+            >
+              <Grid3X3 className="w-4 h-4 mr-2" />
+              Grid
+            </Button>
+            <Button 
+              variant={viewMode === "list" ? "default" : "outline"} 
+              size="sm" 
+              onClick={() => setViewMode("list")}
+              className={viewMode === "list" ? "bg-blue-600 hover:bg-blue-700" : ""}
+            >
+              <List className="w-4 h-4 mr-2" />
+              List
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant={viewMode === "grid" ? "default" : "outline"} size="sm" onClick={() => setViewMode("grid")}>
-            <Grid3X3 className="w-4 h-4" />
-          </Button>
-          <Button variant={viewMode === "list" ? "default" : "outline"} size="sm" onClick={() => setViewMode("list")}>
-            <List className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Search by title, city, or property type..."
-                className="pl-10"
-                value={filters.search}
-                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-              />
-            </div>
-
-            {/* Filter Row */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-              <Select onValueChange={(val) => setFilters((f) => ({ ...f, type: val }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Property Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Apartment">Apartment</SelectItem>
-                  <SelectItem value="PG">PG</SelectItem>
-                  <SelectItem value="Land">Land</SelectItem>
-                  <SelectItem value="Villa">Villa</SelectItem>
-                  <SelectItem value="House">House</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select onValueChange={(val) => setFilters((f) => ({ ...f, transaction_type: val }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Transaction" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Lease">Lease</SelectItem>
-                  <SelectItem value="Sale">Sale</SelectItem>
-                  <SelectItem value="PG">Subscription</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Input
-                placeholder="City"
-                value={filters.city}
-                onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
-              />
-
-              <Input
-                placeholder="Min Price"
-                type="number"
-                value={filters.minPrice}
-                onChange={(e) => setFilters((f) => ({ ...f, minPrice: e.target.value }))}
-              />
-
-              <Input
-                placeholder="Max Price"
-                type="number"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters((f) => ({ ...f, maxPrice: e.target.value }))}
-              />
-
-              <Select onValueChange={(val) => setFilters((f) => ({ ...f, minRating: val }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Min Rating" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1+ Stars</SelectItem>
-                  <SelectItem value="2">2+ Stars</SelectItem>
-                  <SelectItem value="3">3+ Stars</SelectItem>
-                  <SelectItem value="4">4+ Stars</SelectItem>
-                  <SelectItem value="5">5 Stars</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Filter Actions */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {filteredProperties.length} of {properties.length} properties
-                </span>
+        {/* Search and Filters */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Input
+                  placeholder="Search by title, city, or property type..."
+                  className="pl-12 h-12 text-lg border-gray-200 focus:border-blue-400 focus:ring-blue-400/20"
+                  value={filters.search}
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="price-low">Price: Low to High</SelectItem>
-                    <SelectItem value="price-high">Price: High to Low</SelectItem>
-                    <SelectItem value="rating">Highest Rated</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="sm" onClick={clearFilters}>
-                  Clear Filters
+
+              {/* Mobile Filter Toggle */}
+              <div className="md:hidden">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="w-full justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filters
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                        Active
+                      </Badge>
+                    )}
+                  </div>
+                  <X className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-45' : 'rotate-0'}`} />
                 </Button>
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Results */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="text-muted-foreground">Loading properties...</p>
-          </div>
-        </div>
-      ) : filteredProperties.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center space-y-4">
-              <Home className="w-16 h-16 mx-auto text-muted-foreground/50" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">No Properties Found</h3>
-                <p className="text-muted-foreground mb-4">
-                  Try adjusting your filters or search terms to find more properties.
-                </p>
-                <Button onClick={clearFilters}>Clear All Filters</Button>
+              {/* Filter Row */}
+              <div className={`grid grid-cols-2 md:grid-cols-6 gap-4 ${!showFilters && 'hidden md:grid'}`}>
+                <Select value={filters.type} onValueChange={(val) => setFilters((f) => ({ ...f, type: val }))}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Property Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Types</SelectItem>
+                    <SelectItem value="Apartment">Apartment</SelectItem>
+                    <SelectItem value="PG">PG</SelectItem>
+                    <SelectItem value="Land">Land</SelectItem>
+                    <SelectItem value="Villa">Villa</SelectItem>
+                    <SelectItem value="House">House</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.transaction_type} onValueChange={(val) => setFilters((f) => ({ ...f, transaction_type: val }))}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Transaction" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Transactions</SelectItem>
+                    <SelectItem value="Lease">Lease</SelectItem>
+                    <SelectItem value="Sale">Sale</SelectItem>
+                    <SelectItem value="Subscription">PG/Subscription</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  placeholder="City"
+                  className="h-11"
+                  value={filters.city}
+                  onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
+                />
+
+                <Input
+                  placeholder="Min Price"
+                  type="number"
+                  className="h-11"
+                  value={filters.minPrice}
+                  onChange={(e) => setFilters((f) => ({ ...f, minPrice: e.target.value }))}
+                />
+
+                <Input
+                  placeholder="Max Price"
+                  type="number"
+                  className="h-11"
+                  value={filters.maxPrice}
+                  onChange={(e) => setFilters((f) => ({ ...f, maxPrice: e.target.value }))}
+                />
+
+                <Select value={filters.minRating} onValueChange={(val) => setFilters((f) => ({ ...f, minRating: val }))}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Min Rating" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">Any Rating</SelectItem>
+                    <SelectItem value="1">1+ Stars</SelectItem>
+                    <SelectItem value="2">2+ Stars</SelectItem>
+                    <SelectItem value="3">3+ Stars</SelectItem>
+                    <SelectItem value="4">4+ Stars</SelectItem>
+                    <SelectItem value="5">5 Stars</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filter Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <div className="flex items-center gap-3">
+                  <SlidersHorizontal className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700">
+                    <span className="text-blue-600 font-semibold">{filteredProperties.length}</span> of {properties.length} properties
+                  </span>
+                  {hasActiveFilters && (
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      Filters Applied
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-44 h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="price-low">Price: Low to High</SelectItem>
+                      <SelectItem value="price-high">Price: High to Low</SelectItem>
+                      <SelectItem value="rating">Highest Rated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {hasActiveFilters && (
+                    <Button variant="outline" size="sm" onClick={clearFilters} className="hover:bg-red-50 hover:text-red-600 hover:border-red-200">
+                      <X className="w-4 h-4 mr-1" />
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-          {filteredProperties.map((property) => (
-            <PropertyCard key={property.id} property={property} />
-          ))}
-        </div>
-      )}
+
+        {/* Results */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center space-y-4">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
+                <div className="animate-pulse absolute inset-2 rounded-full bg-blue-50"></div>
+              </div>
+              <p className="text-gray-600 text-lg">Loading amazing properties...</p>
+            </div>
+          </div>
+        ) : filteredProperties.length === 0 ? (
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="py-16">
+              <div className="text-center space-y-6">
+                <div className="relative">
+                  <Home className="w-24 h-24 mx-auto text-gray-300" />
+                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <X className="w-4 h-4 text-red-500" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-semibold mb-3 text-gray-900">No Properties Found</h3>
+                  <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                    We couldn't find any properties matching your criteria. Try adjusting your filters or search terms to discover more options.
+                  </p>
+                  <Button onClick={clearFilters} className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800">
+                    <X className="w-4 h-4 mr-2" />
+                    Clear All Filters
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "space-y-6"}>
+            {filteredProperties.map((property) => (
+              <PropertyCard key={property.id} property={property} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
