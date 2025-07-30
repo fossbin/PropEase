@@ -178,7 +178,7 @@ def generate_pdf_reportlab(data: dict, title: str) -> bytes:
     c.setFont("Helvetica-Bold", 24)
     c.drawString(110, height - 50, "PropEase")
     c.setFont("Helvetica", 12)
-    c.drawString(110, height - 70, "Property Management Solutions")
+    c.drawString(110, height - 70, "Property Management System")
     
     # Document title
     c.setFont("Helvetica-Bold", 20)

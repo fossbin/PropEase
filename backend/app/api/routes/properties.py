@@ -167,3 +167,24 @@ def delete_property(
         raise HTTPException(status_code=500, detail="Failed to delete property")
 
     return {"message": "Property and related data deleted successfully"}
+
+@router.get("/{property_id}/reviews")
+def get_property_reviews(
+    property_id: UUID,
+    supabase: Client = Depends(get_supabase)
+):
+    result = supabase.table("reviews") \
+        .select("id, reviewer_id, rating, comment, sentiment, created_at, users!reviewer_id(name)") \
+        .eq("property_id", str(property_id)) \
+        .order("created_at", desc=True) \
+        .execute()
+    
+    # Transform the data to include reviewer name
+    reviews = []
+    for review in result.data:
+        reviews.append({
+            **review,
+            "reviewer_name": review.get("users", {}).get("name") if review.get("users") else None
+        })
+    
+    return reviews

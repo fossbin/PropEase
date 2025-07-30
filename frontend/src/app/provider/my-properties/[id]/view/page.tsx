@@ -18,6 +18,7 @@ import {
   Calendar,
   Eye,
   AlertTriangle,
+  MessageSquare,
 } from "lucide-react"
 import useAuthRedirect from "@/hooks/useAuthRedirect"
 
@@ -31,6 +32,16 @@ interface Location {
   zipcode: string
   latitude: number
   longitude: number
+}
+
+interface Review {
+  id: string
+  reviewer_id: string
+  rating: number
+  comment: string
+  sentiment: string | null
+  created_at: string
+  reviewer_name?: string
 }
 
 interface Property {
@@ -61,7 +72,9 @@ export default function PropertyViewPage() {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
   const [property, setProperty] = useState<Property | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [reviewsLoading, setReviewsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -81,7 +94,24 @@ export default function PropertyViewPage() {
       }
     }
 
-    if (id) fetchProperty()
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/properties/${id}/reviews`)
+        if (res.ok) {
+          const data = await res.json()
+          setReviews(data)
+        }
+      } catch (err) {
+        console.error("Error fetching reviews:", err)
+      } finally {
+        setReviewsLoading(false)
+      }
+    }
+
+    if (id) {
+      fetchProperty()
+      fetchReviews()
+    }
   }, [id])
 
   const getStatusColor = (status: string) => {
@@ -110,6 +140,36 @@ export default function PropertyViewPage() {
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
+  }
+
+  const getSentimentColor = (sentiment: string | null) => {
+    switch (sentiment?.toLowerCase()) {
+      case "positive":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "negative":
+        return "bg-red-100 text-red-800 border-red-200"
+      case "neutral":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const renderStars = (rating: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        className={`h-4 w-4 ${
+          i < rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+        }`}
+      />
+    ))
+  }
+
+  const calculateAverageRating = () => {
+    if (reviews.length === 0) return 0
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0)
+    return (sum / reviews.length).toFixed(1)
   }
 
   if (loading) {
@@ -251,6 +311,77 @@ export default function PropertyViewPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Reviews Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Reviews ({reviews.length})
+                {reviews.length > 0 && (
+                  <div className="flex items-center gap-1 ml-2">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span className="text-sm font-normal">
+                      {calculateAverageRating()} average
+                    </span>
+                  </div>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {reviewsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spinner rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span className="ml-2 text-muted-foreground">Loading reviews...</span>
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">No reviews yet</p>
+                  <p className="text-sm text-muted-foreground">Be the first to leave a review!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              {review.reviewer_name || 'Anonymous User'}
+                            </span>
+                            {review.sentiment && (
+                              <Badge 
+                                className={`${getSentimentColor(review.sentiment)} border text-xs`} 
+                                variant="outline"
+                              >
+                                {review.sentiment}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {renderStars(review.rating)}
+                            <span className="text-sm text-muted-foreground ml-1">
+                              {review.rating}/5
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(review.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      {review.comment && (
+                        <p className="text-muted-foreground leading-relaxed">
+                          {review.comment}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}
@@ -302,15 +433,15 @@ export default function PropertyViewPage() {
                   <span>{property.occupancy ?? 0}</span>
                 </div>
 
-                {property.rating && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Rating:</span>
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{property.rating.toFixed(1)}</span>
-                    </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Rating:</span>
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span>
+                      {reviews.length > 0 ? calculateAverageRating() : property.rating?.toFixed(1) || 'N/A'}
+                    </span>
                   </div>
-                )}
+                </div>
               </div>
             </CardContent>
           </Card>
