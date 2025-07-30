@@ -9,3 +9,4 @@ torch
 vaderSentiment
 numpy
 scikit-learn
+google-generativeai

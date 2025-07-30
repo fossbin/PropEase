@@ -11,13 +11,22 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import LocationPicker from "@/components/LocationPicker"
 import imageCompression from "browser-image-compression"
 import Script from "next/script"
-import { Home, MapPin, Camera, FileText, IndianRupee, Users, X, Upload, Loader2, CheckCircle } from "lucide-react"
+import { Home, MapPin, Camera, FileText, IndianRupee, Users, X, Upload, Loader2, CheckCircle, Sparkles, Brain, TrendingUp } from "lucide-react"
 import useAuthRedirect from "@/hooks/useAuthRedirect"
 
 const userID = typeof window !== "undefined" ? sessionStorage.getItem("userId") || "" : ""
+
+// Price recommendation response interface
+interface PriceRecommendation {
+  suggested_price: string
+  price_range: string
+  reasoning: string
+  confidence_level: string
+}
 
 export default function AddPropertyPage() {
   useAuthRedirect()
@@ -26,6 +35,9 @@ export default function AddPropertyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [uploadingDocs, setUploadingDocs] = useState(false)
+  const [loadingPriceRecommendation, setLoadingPriceRecommendation] = useState(false)
+  const [priceRecommendation, setPriceRecommendation] = useState<PriceRecommendation | null>(null)
+  const [showPriceRecommendation, setShowPriceRecommendation] = useState(false)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -59,11 +71,76 @@ export default function AddPropertyPage() {
       formData.location.latitude,
       formData.location.longitude,
       formData.photos.length > 0 ? formData.photos[0] : "", 
-      formData.documents.length > 0 ? formData.documents[0].document_url : "", // Changed from .path to .document_url
+      formData.documents.length > 0 ? formData.documents[0].document_url : "",
     ]
     const filledFields = requiredFields.filter((field) => field && field.toString().trim() !== "").length
     return Math.round((filledFields / requiredFields.length) * 100)
   }
+
+  // Get AI price recommendation
+  const getPriceRecommendation = async () => {
+    if (!formData.type || !formData.description || !formData.transaction_type) {
+      alert("Please fill in property type, description, and transaction type before getting price recommendation.")
+      return
+    }
+
+    setLoadingPriceRecommendation(true)
+    
+    try {
+      // Extract amenities from description (simple keyword matching)
+      const amenitiesKeywords = [
+        'parking', 'gym', 'swimming pool', 'security', 'elevator', 'balcony', 
+        'garden', 'wifi', 'ac', 'furnished', 'kitchen', 'bathroom'
+      ]
+      const amenities = amenitiesKeywords.filter(keyword => 
+        formData.description.toLowerCase().includes(keyword)
+      )
+
+      const requestBody = {
+        property_type: formData.type,
+        location: formData.location.address_line || `${formData.location.city}, ${formData.location.state}`,
+        transaction_type: formData.transaction_type,
+        description: formData.description,
+        capacity: formData.capacity ? parseInt(formData.capacity) : null,
+        amenities: amenities,
+        city: formData.location.city,
+        state: formData.location.state,
+        country: formData.location.country,
+        additional_info: `Title: ${formData.title}`
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/pricing/suggest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': sessionStorage.getItem('UserId')|| '',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get price recommendation')
+      }
+
+      const recommendation: PriceRecommendation = await response.json()
+      setPriceRecommendation(recommendation)
+      setShowPriceRecommendation(true)
+      
+      // Auto-fill the price field with the suggested price (extract just the number)
+      const priceMatch = recommendation.suggested_price.match(/[\d,]+/)
+      if (priceMatch) {
+        const suggestedPrice = priceMatch[0].replace(/,/g, '')
+        setFormData(prev => ({ ...prev, price: suggestedPrice }))
+      }
+
+    } catch (error) {
+      console.error('Price recommendation error:', error)
+      alert('Failed to get price recommendation. Please try again.')
+    } finally {
+      setLoadingPriceRecommendation(false)
+    }
+  }
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
@@ -122,7 +199,6 @@ export default function AddPropertyPage() {
     }
   };
 
-
   const handleBooleanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target
     setFormData((prev) => ({ ...prev, [name]: checked }))
@@ -145,7 +221,6 @@ export default function AddPropertyPage() {
         continue
       }
 
-      // Get the document type based on file extension or default to "Other"
       const getDocumentType = (fileName: string): string => {
         const extension = fileName.split('.').pop()?.toLowerCase()
         switch (extension) {
@@ -332,12 +407,77 @@ export default function AddPropertyPage() {
               <CardDescription>Set your pricing and property capacity details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* AI Price Recommendation Alert */}
+              {showPriceRecommendation && priceRecommendation && (
+                <Alert className="border-blue-200 bg-blue-50">
+                  <Brain className="h-4 w-4 text-blue-600" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <div className="font-semibold text-blue-900">AI Price Recommendation</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium">Suggested Price:</span> ₹{priceRecommendation.suggested_price}
+                        </div>
+                        <div>
+                          <span className="font-medium">Price Range:</span> ₹{priceRecommendation.price_range}
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">Reasoning:</span> {priceRecommendation.reasoning}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">Confidence:</span> 
+                        <span className={`ml-1 px-2 py-1 rounded text-xs ${
+                          priceRecommendation.confidence_level === 'High' ? 'bg-green-100 text-green-800' :
+                          priceRecommendation.confidence_level === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {priceRecommendation.confidence_level}
+                        </span>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setShowPriceRecommendation(false)}
+                        className="mt-2"
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Dismiss
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="price" className="text-sm font-medium">
-                    Price *
-                  </Label>
-                  <div className="relative mt-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <Label htmlFor="price" className="text-sm font-medium">
+                      Price *
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={getPriceRecommendation}
+                      disabled={loadingPriceRecommendation || !formData.type || !formData.description}
+                      className="text-xs px-3 py-1 h-auto"
+                    >
+                      {loadingPriceRecommendation ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Getting AI Price...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Get AI Price
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="relative">
                     <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
                       type="number"
@@ -349,6 +489,9 @@ export default function AddPropertyPage() {
                       className="pl-10"
                     />
                   </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Fill property details above to get AI-powered price suggestion
+                  </p>
                 </div>
 
                 <div>
@@ -600,7 +743,7 @@ export default function AddPropertyPage() {
                       <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-slate-500" />
-                          <span className="text-sm text-slate-700">{doc.file_name}</span> {/* Changed from doc.name to doc.file_name */}
+                          <span className="text-sm text-slate-700">{doc.file_name}</span>
                         </div>
                         <button
                           type="button"

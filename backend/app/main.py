@@ -5,9 +5,6 @@ import logging
 from app.api.routes import (
     users,
     properties,
-    leases,
-    sales,
-    subscriptions,
     seeker_applications,
     provider_applications,
     common_account_transactions,
@@ -26,7 +23,8 @@ from app.api.routes import (
     seeker_dashboard,
     provider_analytics,
     admin_reviews,
-    admin_analytics
+    admin_analytics,
+    pricing
 )
 
 app = FastAPI()
@@ -59,9 +57,6 @@ async def log_requests(request: Request, call_next):
 # Include routers
 app.include_router(users.router, prefix="/api")
 app.include_router(properties.router, prefix="/api")
-app.include_router(leases.router, prefix="/api/leases")
-app.include_router(sales.router, prefix="/api/sales")
-app.include_router(subscriptions.router, prefix="/api/subscriptions")
 app.include_router(seeker_applications.router, prefix="/api")
 app.include_router(provider_applications.router, prefix="/api")
 app.include_router(common_account_transactions.router, prefix="/api")
@@ -81,6 +76,7 @@ app.include_router(seeker_dashboard.router, prefix="/api")
 app.include_router(admin_reviews.router, prefix="/api")
 app.include_router(admin_analytics.router, prefix="/api")
 app.include_router(provider_analytics.router, prefix="/api")
+app.include_router(pricing.router, prefix="/api")
 
 @app.get("/")
 def read_root():

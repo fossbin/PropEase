@@ -57,9 +57,9 @@ def explore_properties(
         )
         .eq("verified", True)
         .eq("approval_status", "Approved")
-        .neq("status", "Sold")  # Exclude sold properties
-        .neq("status", "Booked")  # Exclude booked properties
-        .neq("owner_id", user_id)  # Exclude properties owned by current user
+        .neq("status", "Sold")  
+        .neq("status", "Booked")  
+        .neq("owner_id", user_id)  
     )
     
     # Exclude properties the user has applied to or is currently using
