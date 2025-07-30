@@ -200,14 +200,6 @@ export default function ExplorePage() {
                       {property.state && <span className="text-gray-400">• {property.state}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-1 ml-4">
-                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-red-50 hover:text-red-600 transition-colors">
-                      <Heart className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                      <Share2 className="w-4 h-4" />
-                    </Button>
-                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 mb-4">

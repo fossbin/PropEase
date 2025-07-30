@@ -12,4 +12,7 @@ class ReviewResponse(BaseModel):
     property_id: str
     rating: int
     comment: Optional[str]
+    sentiment: Optional[str]
     created_at: datetime
+    reviewer_name: Optional[str]
+    reviewer_picture: Optional[dict]  # since picture is JSONB

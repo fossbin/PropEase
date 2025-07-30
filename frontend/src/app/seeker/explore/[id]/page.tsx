@@ -76,8 +76,18 @@ export default function PropertyDetails() {
       setLoading(true)
       try {
         const [propertyRes, reviewsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/seeker/property/${id}`),
-          fetch(`${API_BASE_URL}/api/seeker/review/${id}`),
+          fetch(`${API_BASE_URL}/api/seeker/property/${id}`,{
+            headers: {
+            "Content-Type": "application/json",
+            'X-User-Id': sessionStorage.getItem('userId') || '',
+          }
+          }),
+          fetch(`${API_BASE_URL}/api/seeker/review/property/${id}`,{
+            headers: {
+              "Content-Type": "application/json",
+              'X-User-Id': sessionStorage.getItem('userId') || '',
+            }
+          }),
         ])
 
         const propertyData = await propertyRes.json()
@@ -392,7 +402,7 @@ export default function PropertyDetails() {
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                                   <span className="text-primary font-semibold text-sm">
-                                    {review.reviewer_name.charAt(0).toUpperCase()}
+                                    {(review.reviewer_name ?? "U").charAt(0).toUpperCase()}
                                   </span>
                                 </div>
                                 <div>

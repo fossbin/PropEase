@@ -169,9 +169,17 @@ def get_reviews_for_property(
     supabase: Client = Depends(get_supabase)
 ):
     result = supabase.table("reviews") \
-        .select("*") \
+        .select("*, users(name, picture)") \
         .eq("property_id", property_id) \
         .order("created_at", desc=True) \
         .execute()
-    
-    return result.data or []
+
+    # Flatten user data into the review
+    reviews = []
+    for review in result.data or []:
+        user = review.pop("users", {})
+        review["reviewer_name"] = user.get("name", "Unknown")
+        review["reviewer_picture"] = user.get("picture")
+        reviews.append(review)
+
+    return reviews
