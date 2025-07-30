@@ -4,6 +4,10 @@ from typing import Optional
 from datetime import date
 from io import BytesIO
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.colors import HexColor, black, white
+from reportlab.lib.units import inch
+from reportlab.platypus import Table, TableStyle
 from app.dependencies import get_current_user
 from app.db.supabase import get_supabase_client as get_supabase
 from decimal import Decimal
@@ -147,17 +151,128 @@ def get_application_detail(application_id: UUID, supabase=Depends(get_supabase))
 
 
 def generate_pdf_reportlab(data: dict, title: str) -> bytes:
+    from datetime import datetime
+    
     buffer = BytesIO()
-    c = canvas.Canvas(buffer)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(100, 800, title)
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    
+    # Define colors
+    primary_color = HexColor('#2563eb')  # Blue
+    secondary_color = HexColor('#f8fafc')  # Light gray
+    text_color = HexColor('#1f2937')  # Dark gray
+    
+    # Header with gradient-like effect
+    c.setFillColor(primary_color)
+    c.rect(0, height - 120, width, 120, fill=1, stroke=0)
+    
+    # Company logo placeholder (circular)
+    c.setFillColor(white)
+    c.circle(60, height - 60, 25, fill=1, stroke=0)
+    c.setFillColor(primary_color)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredText(60, height - 65, "PE")
+    
+    # Company name and title
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 24)
+    c.drawString(110, height - 50, "PropEase")
     c.setFont("Helvetica", 12)
-
-    y = 770
+    c.drawString(110, height - 70, "Property Management Solutions")
+    
+    # Document title
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(110, height - 100, title)
+    
+    # Add a decorative line
+    c.setStrokeColor(white)
+    c.setLineWidth(2)
+    c.line(50, height - 130, width - 50, height - 130)
+    
+    # Document info section
+    c.setFillColor(text_color)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, height - 160, "Document Information")
+    
+    # Add current date and document ID
+    current_date = datetime.now().strftime("%B %d, %Y")
+    c.setFont("Helvetica", 10)
+    c.drawString(50, height - 180, f"Generated on: {current_date}")
+    c.drawString(50, height - 195, f"Document ID: {data.get('Lease ID', data.get('Sale ID', data.get('Subscription ID', 'N/A')))}")
+    
+    # Main content area with background
+    content_y_start = height - 230
+    c.setFillColor(secondary_color)
+    c.rect(30, content_y_start - 200, width - 60, 200, fill=1, stroke=0)
+    
+    # Content table data
+    table_data = []
     for key, value in data.items():
-        c.drawString(50, y, f"{key}: {value}")
-        y -= 20
-
+        if key not in ['Date Issued']:  # Skip date issued as it's already shown above
+            # Format the key to be more readable
+            formatted_key = key.replace("_", " ").title()
+            table_data.append([formatted_key, str(value)])
+    
+    # Create and style the table
+    if table_data:
+        table = Table(table_data, colWidths=[2.5*inch, 3.5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), white),
+            ('TEXTCOLOR', (0, 0), (-1, -1), text_color),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [white, HexColor('#f9fafb')]),
+            ('GRID', (0, 0), (-1, -1), 1, HexColor('#e5e7eb')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        
+        # Draw the table
+        table.wrapOn(c, width - 100, height)
+        table.drawOn(c, 50, content_y_start - 180)
+    
+    # Terms and conditions section
+    terms_y = content_y_start - 250
+    c.setFillColor(text_color)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, terms_y, "Terms and Conditions")
+    
+    c.setFont("Helvetica", 9)
+    terms_text = [
+        "• This document is legally binding and constitutes an agreement between the parties.",
+        "• All payments must be made on time as specified in the agreement.",
+        "• Any modifications to this agreement must be made in writing and signed by all parties.",
+        "• This document is generated electronically and is valid without physical signatures.",
+        "• For any disputes, please contact PropEase support at support@propease.com"
+    ]
+    
+    y_pos = terms_y - 20
+    for term in terms_text:
+        c.drawString(50, y_pos, term)
+        y_pos -= 15
+    
+    # Footer
+    footer_y = 80
+    c.setFillColor(primary_color)
+    c.rect(0, 0, width, footer_y, fill=1, stroke=0)
+    
+    c.setFillColor(white)
+    c.setFont("Helvetica", 10)
+    c.drawCentredText(width/2, footer_y/2 + 15, "PropEase - Your Trusted Property Management Partner")
+    c.drawCentredText(width/2, footer_y/2, "Contact: support@propease.com | www.propease.com")
+    c.drawCentredText(width/2, footer_y/2 - 15, "This is a computer-generated document and is valid without signature.")
+    
+    # Add page border
+    c.setStrokeColor(HexColor('#e5e7eb'))
+    c.setLineWidth(1)
+    c.rect(20, 20, width - 40, height - 40, fill=0, stroke=1)
+    
     c.showPage()
     c.save()
     buffer.seek(0)
@@ -335,6 +450,49 @@ def update_application(application_id: UUID, payload: dict, supabase=Depends(get
                     print(f"Subscription insert failed: {sub_result}")
                     raise HTTPException(status_code=500, detail="Failed to create subscription record")
                 print(f"Subscription created successfully: {sub_result.data[0]['id']}")
+
+            
+            if prop_type in ["Sale", "Lease"]:
+                rejection_msg = "Another application was approved."
+                reject_res = supabase.table("applications") \
+                    .update({
+                        "status": "Rejected",
+                        "message": rejection_msg
+                    }) \
+                    .eq("property_id", app["property_id"]) \
+                    .neq("id", str(application_id)) \
+                    .neq("status", "Rejected") \
+                    .execute()
+
+            elif prop_type == "PG":
+                # Get max occupancy of PG property
+                max_resp = supabase.table("properties") \
+                    .select("max_occupancy") \
+                    .eq("id", app["property_id"]) \
+                    .limit(1) \
+                    .execute()
+
+                max_occupancy = max_resp.data[0]["max_occupancy"] if max_resp.data else 0
+
+                # Count current active subscriptions
+                active_subs = supabase.table("subscriptions") \
+                    .select("id") \
+                    .eq("property_id", app["property_id"]) \
+                    .eq("is_active", True) \
+                    .execute()
+
+                if len(active_subs.data or []) >= max_occupancy:
+                    rejection_msg = "Occupancy full. No more applications accepted."
+                    reject_pg = supabase.table("applications") \
+                        .update({
+                            "status": "Rejected",
+                            "message": rejection_msg
+                        }) \
+                        .eq("property_id", app["property_id"]) \
+                        .neq("id", str(application_id)) \
+                        .neq("status", "Rejected") \
+                        .execute()
+
 
         return updated_app
     
