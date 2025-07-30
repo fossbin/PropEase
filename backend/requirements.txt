@@ -4,3 +4,8 @@ python-dotenv
 supabase
 reportlab
 python-multipart
+transformers 
+torch
+vaderSentiment
+numpy
+scikit-learn
