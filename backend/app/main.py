@@ -21,7 +21,12 @@ from app.api.routes import (
     property_detail,
     bookings,
     purchases,
-    payments
+    payments,
+    provider_dashboard,
+    seeker_dashboard,
+    provider_analytics,
+    admin_reviews,
+    admin_analytics
 )
 
 app = FastAPI()
@@ -71,6 +76,11 @@ app.include_router(property_detail.router, prefix="/api")
 app.include_router(bookings.router, prefix="/api")
 app.include_router(purchases.router, prefix="/api")
 app.include_router(payments.router, prefix="/api")
+app.include_router(provider_dashboard.router, prefix="/api")
+app.include_router(seeker_dashboard.router, prefix="/api")
+app.include_router(admin_reviews.router, prefix="/api")
+app.include_router(admin_analytics.router, prefix="/api")
+app.include_router(provider_analytics.router, prefix="/api")
 
 @app.get("/")
 def read_root():

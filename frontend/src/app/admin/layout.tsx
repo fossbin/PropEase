@@ -28,7 +28,6 @@ const adminLinks = [
   { name: "Dashboard", href: "/admin", icon: Home, badge: null },
   { name: "Manage Properties", href: "/admin/property-approvals", icon: FileCheck2, badge: null },
   { name: "Support Tickets", href: "/admin/support", icon: LifeBuoy, badge: null },
-  { name: "Analytics", href: "/admin/analytics", icon: BarChart2, badge: null },
   { name: "Manage Users", href: "/admin/users", icon: Users, badge: null },
   { name: "Reviews & Moderation", href: "/admin/reviews", icon: ShieldCheck, badge: null },
 ]
