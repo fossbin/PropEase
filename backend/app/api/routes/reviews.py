@@ -3,7 +3,7 @@ from uuid import uuid4
 from typing import List
 from app.models.reviews import ReviewCreate, ReviewResponse
 from app.db.supabase import get_supabase_client as get_supabase
-# from app.services.sentiment_local import classify_sentiment
+from app.services.sentiment_local import classify_sentiment
 from supabase import Client
 
 router = APIRouter(prefix="/seeker", tags=["Seeker Reviews"])
@@ -46,7 +46,7 @@ def create_or_update_review(
         .execute()
     
     # Optional sentiment analysis
-    # sentiment = classify_sentiment(review_data.comment)
+    sentiment = classify_sentiment(review_data.comment)
     
     if existing_review.data and len(existing_review.data) > 0:
         # Update existing review
@@ -55,7 +55,7 @@ def create_or_update_review(
         update_obj = {
             "rating": review_data.rating,
             "comment": review_data.comment,
-            # "sentiment": sentiment
+            "sentiment": sentiment
         }
         
         result = supabase.table("reviews") \
