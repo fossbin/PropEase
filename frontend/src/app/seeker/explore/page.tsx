@@ -264,23 +264,6 @@ export default function ExplorePage() {
                 <Home className="w-16 h-16 text-gray-400" />
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <div className="absolute top-3 right-3 flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-red-600"
-              >
-                <Heart className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-blue-600"
-              >
-                <Share2 className="w-4 h-4" />
-              </Button>
-            </div>
             {property.verified && (
               <Badge className="absolute top-3 left-3 bg-emerald-500 text-white text-xs px-2 py-1 shadow-sm">
                 ✓ Verified
