@@ -39,6 +39,7 @@ import {
   User,
   Clock,
   Shield,
+  Info,
 } from "lucide-react"
 import useAuthRedirect from "@/hooks/useAuthRedirect"
 
@@ -64,6 +65,19 @@ interface UserDocument {
   uploaded_at?: string
 }
 
+interface ValidationErrors {
+  [key: string]: string
+}
+
+interface FormData {
+  message: string
+  bidAmount: string
+  leaseStart: string
+  leaseEnd: string
+  subscriptionStart: string
+  subscriptionEnd: string
+}
+
 export default function ApplyPropertyPage() {
   useAuthRedirect()
   const { id } = useParams()
@@ -73,15 +87,18 @@ export default function ApplyPropertyPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({})
+  const [formErrors, setFormErrors] = useState<ValidationErrors>({})
+  const [touched, setTouched] = useState<{ [key: string]: boolean }>({})
 
   // Form state
-  const [message, setMessage] = useState("")
-  const [bidAmount, setBidAmount] = useState("")
-  const [leaseStart, setLeaseStart] = useState("")
-  const [leaseEnd, setLeaseEnd] = useState("")
-  const [subscriptionStart, setSubscriptionStart] = useState("")
-  const [subscriptionEnd, setSubscriptionEnd] = useState("")
+  const [formData, setFormData] = useState<FormData>({
+    message: "",
+    bidAmount: "",
+    leaseStart: "",
+    leaseEnd: "",
+    subscriptionStart: "",
+    subscriptionEnd: "",
+  })
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -103,91 +120,230 @@ export default function ApplyPropertyPage() {
           }),
         ])
 
+        if (!propertyRes.ok || !profileRes.ok) {
+          throw new Error("Failed to fetch data")
+        }
+
         const propertyData = await propertyRes.json()
         const profileData = await profileRes.json()
-
         setProperty(propertyData)
         setUserDocuments(profileData.user_documents || [])
       } catch (err) {
         console.error("Error loading data:", err)
+        setFormErrors({ general: "Failed to load property data. Please try again." })
       } finally {
         setLoading(false)
       }
     }
 
     if (id) fetchData()
-  }, [id])
+  }, [id, API_BASE_URL])
 
-  const validateForm = () => {
-    const errors: { [key: string]: string } = {}
+  // Real-time validation
+  const validateField = (name: string, value: string): string => {
+    switch (name) {
+      case "message":
+        if (!value.trim()) return "Message is required"
+        if (value.trim().length < 10) return "Message should be at least 10 characters"
+        if (value.length > 500) return "Message cannot exceed 500 characters"
+        if (!/^[a-zA-Z0-9\s.,!?'-]+$/.test(value)) return "Message contains invalid characters"
+        return ""
 
-    if (!message.trim()) {
-      errors.message = "Message is required"
-    } else if (message.length < 10) {
-      errors.message = "Message should be at least 10 characters"
+      case "bidAmount":
+        if (value && (!value.match(/^\d+(\.\d{1,2})?$/) || Number(value) <= 0)) {
+          return "Bid amount must be a valid positive number"
+        }
+        if (value && Number(value) > 10000000) {
+          return "Bid amount seems unreasonably high"
+        }
+        if (property && value && Number(value) < property.price * 0.1) {
+          return "Bid amount is significantly lower than asking price"
+        }
+        return ""
+
+      case "leaseStart":
+      case "subscriptionStart":
+        if (property?.transaction_type === "Lease" && name === "leaseStart" && !value) {
+          return "Lease start date is required"
+        }
+        if (property?.transaction_type === "PG" && name === "subscriptionStart" && !value) {
+          return "Subscription start date is required"
+        }
+        if (value) {
+          const selectedDate = new Date(value)
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+
+          if (selectedDate < today) {
+            return "Start date cannot be in the past"
+          }
+
+          const maxFutureDate = new Date()
+          maxFutureDate.setFullYear(maxFutureDate.getFullYear() + 2)
+          if (selectedDate > maxFutureDate) {
+            return "Start date cannot be more than 2 years in the future"
+          }
+        }
+        return ""
+
+      case "leaseEnd":
+      case "subscriptionEnd":
+        const startField = name === "leaseEnd" ? "leaseStart" : "subscriptionStart"
+        const startDate = formData[startField as keyof FormData]
+
+        if (property?.transaction_type === "Lease" && name === "leaseEnd" && !value) {
+          return "Lease end date is required"
+        }
+        if (property?.transaction_type === "PG" && name === "subscriptionEnd" && !value) {
+          return "Subscription end date is required"
+        }
+
+        if (value && startDate) {
+          const start = new Date(startDate)
+          const end = new Date(value)
+
+          if (end <= start) {
+            return "End date must be after start date"
+          }
+
+          const diffTime = Math.abs(end.getTime() - start.getTime())
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+          if (property?.transaction_type === "Lease" && diffDays < 30) {
+            return "Lease period should be at least 30 days"
+          }
+          if (property?.transaction_type === "PG" && diffDays < 7) {
+            return "Subscription period should be at least 7 days"
+          }
+          if (diffDays > 1095) {
+            // 3 years
+            return "Period cannot exceed 3 years"
+          }
+        }
+        return ""
+
+      default:
+        return ""
     }
+  }
 
+  const handleInputChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
+
+    // Real-time validation
+    if (touched[name]) {
+      const error = validateField(name, value)
+      setFormErrors((prev) => ({
+        ...prev,
+        [name]: error,
+      }))
+    }
+  }
+
+  const handleBlur = (name: string) => {
+    setTouched((prev) => ({ ...prev, [name]: true }))
+    const error = validateField(name, formData[name as keyof FormData])
+    setFormErrors((prev) => ({
+      ...prev,
+      [name]: error,
+    }))
+  }
+
+  const validateForm = (): boolean => {
+    const errors: ValidationErrors = {}
+    const fields = Object.keys(formData) as (keyof FormData)[]
+
+    fields.forEach((field) => {
+      const error = validateField(field, formData[field])
+      if (error) errors[field] = error
+    })
+
+    // Additional cross-field validation
     if (property?.transaction_type === "Lease") {
-      if (!leaseStart) errors.leaseStart = "Lease start date is required"
-      if (!leaseEnd) errors.leaseEnd = "Lease end date is required"
-      if (leaseStart && leaseEnd && new Date(leaseStart) >= new Date(leaseEnd)) {
-        errors.leaseEnd = "End date must be after start date"
-      }
+      if (!formData.leaseStart) errors.leaseStart = "Lease start date is required"
+      if (!formData.leaseEnd) errors.leaseEnd = "Lease end date is required"
     }
 
     if (property?.transaction_type === "PG") {
-      if (!subscriptionStart) errors.subscriptionStart = "Subscription start date is required"
-      if (!subscriptionEnd) errors.subscriptionEnd = "Subscription end date is required"
-      if (subscriptionStart && subscriptionEnd && new Date(subscriptionStart) >= new Date(subscriptionEnd)) {
-        errors.subscriptionEnd = "End date must be after start date"
-      }
+      if (!formData.subscriptionStart) errors.subscriptionStart = "Subscription start date is required"
+      if (!formData.subscriptionEnd) errors.subscriptionEnd = "Subscription end date is required"
     }
 
-    if (bidAmount && (isNaN(Number(bidAmount)) || Number(bidAmount) <= 0)) {
-      errors.bidAmount = "Bid amount must be a valid positive number"
+    // Check if user has any documents for better application
+    if (userDocuments.length === 0) {
+      errors.documents = "Consider uploading documents to strengthen your application"
     }
 
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
+  const sanitizeFormData = () => {
+    return {
+      message: formData.message.trim(),
+      bidAmount: formData.bidAmount.trim(),
+      leaseStart: formData.leaseStart,
+      leaseEnd: formData.leaseEnd,
+      subscriptionStart: formData.subscriptionStart,
+      subscriptionEnd: formData.subscriptionEnd,
+    }
+  }
+
   const handleSubmit = async () => {
-    if (!validateForm()) return
+    // Mark all fields as touched for validation display
+    const allFields = Object.keys(formData)
+    setTouched(allFields.reduce((acc, field) => ({ ...acc, [field]: true }), {}))
 
-    const formData = new FormData()
-    formData.append("message", message)
+    if (!validateForm()) {
+      setFormErrors((prev) => ({
+        ...prev,
+        submit: "Please fix the errors above before submitting",
+      }))
+      return
+    }
 
-    if (bidAmount) formData.append("bid_amount", bidAmount)
+    const sanitizedData = sanitizeFormData()
+    const submitFormData = new FormData()
+
+    submitFormData.append("message", sanitizedData.message)
+
+    if (sanitizedData.bidAmount) {
+      submitFormData.append("bid_amount", sanitizedData.bidAmount)
+    }
 
     if (property?.transaction_type === "Lease") {
-      formData.append("lease_start", new Date(leaseStart).toISOString().split("T")[0])
-      formData.append("lease_end", new Date(leaseEnd).toISOString().split("T")[0])
+      submitFormData.append("lease_start", new Date(sanitizedData.leaseStart).toISOString().split("T")[0])
+      submitFormData.append("lease_end", new Date(sanitizedData.leaseEnd).toISOString().split("T")[0])
     }
 
     if (property?.transaction_type === "PG") {
-      formData.append("subscription_start", new Date(subscriptionStart).toISOString().split("T")[0])
-      formData.append("subscription_end", new Date(subscriptionEnd).toISOString().split("T")[0])
+      submitFormData.append("subscription_start", new Date(sanitizedData.subscriptionStart).toISOString().split("T")[0])
+      submitFormData.append("subscription_end", new Date(sanitizedData.subscriptionEnd).toISOString().split("T")[0])
     }
 
-
     setSubmitting(true)
+    setFormErrors({}) // Clear previous errors
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/applications/apply/${id}`, {
         method: "POST",
         headers: {
           "X-User-Id": sessionStorage.getItem("userId") || "",
         },
-        body: formData,
+        body: submitFormData,
       })
 
-      if (response.ok) {
-        router.push("/seeker/applications?success=true")
-      } else {
-        throw new Error("Application submission failed")
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
       }
+
+      router.push("/seeker/applications?success=true")
     } catch (err) {
       console.error("Failed to apply:", err)
-      setFormErrors({ submit: "Something went wrong. Please try again." })
+      setFormErrors({
+        submit: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      })
     } finally {
       setSubmitting(false)
     }
@@ -236,6 +392,15 @@ export default function ApplyPropertyPage() {
     })
   }
 
+  const getInputClassName = (fieldName: string) => {
+    const hasError = formErrors[fieldName]
+    const isTouched = touched[fieldName]
+
+    if (hasError && isTouched) return "border-red-500 focus:border-red-500"
+    if (isTouched && !hasError) return "border-green-500 focus:border-green-500"
+    return ""
+  }
+
   const isLease = property?.transaction_type === "Lease"
   const isSale = property?.transaction_type === "Sale"
   const isPG = property?.transaction_type === "PG"
@@ -258,7 +423,7 @@ export default function ApplyPropertyPage() {
       <div className="max-w-6xl mx-auto p-6">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>Property not found or failed to load.</AlertDescription>
+          <AlertDescription>{formErrors.general || "Property not found or failed to load."}</AlertDescription>
         </Alert>
       </div>
     )
@@ -314,14 +479,12 @@ export default function ApplyPropertyPage() {
                 <span>{property.city}</span>
                 {property.address && <span>• {property.address}</span>}
               </div>
-
               {property.description && (
                 <div>
                   <h3 className="font-semibold mb-2">Description</h3>
                   <p className="text-muted-foreground leading-relaxed">{property.description}</p>
                 </div>
               )}
-
               {property.owner_name && (
                 <div className="flex items-center gap-2 text-sm">
                   <User className="h-4 w-4 text-muted-foreground" />
@@ -382,6 +545,14 @@ export default function ApplyPropertyPage() {
                 </Alert>
               )}
 
+              {/* Document Warning */}
+              {formErrors.documents && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>{formErrors.documents}</AlertDescription>
+                </Alert>
+              )}
+
               {/* Message */}
               <div className="space-y-2">
                 <Label htmlFor="message">
@@ -390,15 +561,16 @@ export default function ApplyPropertyPage() {
                 <Textarea
                   id="message"
                   placeholder="Introduce yourself and explain why you're interested in this property..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  value={formData.message}
+                  onChange={(e) => handleInputChange("message", e.target.value)}
+                  onBlur={() => handleBlur("message")}
                   rows={4}
                   maxLength={500}
-                  className={formErrors.message ? "border-red-500" : ""}
+                  className={getInputClassName("message")}
                 />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{formErrors.message && <span className="text-red-500">{formErrors.message}</span>}</span>
-                  <span>{message.length}/500 characters</span>
+                <div className="flex justify-between text-xs">
+                  <span className="text-red-500">{touched.message && formErrors.message && formErrors.message}</span>
+                  <span className="text-muted-foreground">{formData.message.length}/500 characters</span>
                 </div>
               </div>
 
@@ -410,16 +582,17 @@ export default function ApplyPropertyPage() {
                     <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="bidAmount"
-                      type="number"
-                      min="1"
-                      step="1"
+                      type="text"
                       placeholder={`Enter your ${isSale ? "offer" : "bid"} amount`}
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      className={`pl-9 ${formErrors.bidAmount ? "border-red-500" : ""}`}
+                      value={formData.bidAmount}
+                      onChange={(e) => handleInputChange("bidAmount", e.target.value)}
+                      onBlur={() => handleBlur("bidAmount")}
+                      className={`pl-9 ${getInputClassName("bidAmount")}`}
                     />
                   </div>
-                  {formErrors.bidAmount && <p className="text-xs text-red-500">{formErrors.bidAmount}</p>}
+                  {touched.bidAmount && formErrors.bidAmount && (
+                    <p className="text-xs text-red-500">{formErrors.bidAmount}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {property.is_negotiable
                       ? "This property is negotiable. You can propose a different amount."
@@ -443,12 +616,15 @@ export default function ApplyPropertyPage() {
                       <Input
                         id="leaseStart"
                         type="date"
-                        value={leaseStart}
-                        onChange={(e) => setLeaseStart(e.target.value)}
+                        value={formData.leaseStart}
+                        onChange={(e) => handleInputChange("leaseStart", e.target.value)}
+                        onBlur={() => handleBlur("leaseStart")}
                         min={new Date().toISOString().split("T")[0]}
-                        className={formErrors.leaseStart ? "border-red-500" : ""}
+                        className={getInputClassName("leaseStart")}
                       />
-                      {formErrors.leaseStart && <p className="text-xs text-red-500">{formErrors.leaseStart}</p>}
+                      {touched.leaseStart && formErrors.leaseStart && (
+                        <p className="text-xs text-red-500">{formErrors.leaseStart}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="leaseEnd">
@@ -457,12 +633,15 @@ export default function ApplyPropertyPage() {
                       <Input
                         id="leaseEnd"
                         type="date"
-                        value={leaseEnd}
-                        onChange={(e) => setLeaseEnd(e.target.value)}
-                        min={leaseStart || new Date().toISOString().split("T")[0]}
-                        className={formErrors.leaseEnd ? "border-red-500" : ""}
+                        value={formData.leaseEnd}
+                        onChange={(e) => handleInputChange("leaseEnd", e.target.value)}
+                        onBlur={() => handleBlur("leaseEnd")}
+                        min={formData.leaseStart || new Date().toISOString().split("T")[0]}
+                        className={getInputClassName("leaseEnd")}
                       />
-                      {formErrors.leaseEnd && <p className="text-xs text-red-500">{formErrors.leaseEnd}</p>}
+                      {touched.leaseEnd && formErrors.leaseEnd && (
+                        <p className="text-xs text-red-500">{formErrors.leaseEnd}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -483,12 +662,13 @@ export default function ApplyPropertyPage() {
                       <Input
                         id="subscriptionStart"
                         type="date"
-                        value={subscriptionStart}
-                        onChange={(e) => setSubscriptionStart(e.target.value)}
+                        value={formData.subscriptionStart}
+                        onChange={(e) => handleInputChange("subscriptionStart", e.target.value)}
+                        onBlur={() => handleBlur("subscriptionStart")}
                         min={new Date().toISOString().split("T")[0]}
-                        className={formErrors.subscriptionStart ? "border-red-500" : ""}
+                        className={getInputClassName("subscriptionStart")}
                       />
-                      {formErrors.subscriptionStart && (
+                      {touched.subscriptionStart && formErrors.subscriptionStart && (
                         <p className="text-xs text-red-500">{formErrors.subscriptionStart}</p>
                       )}
                     </div>
@@ -499,12 +679,13 @@ export default function ApplyPropertyPage() {
                       <Input
                         id="subscriptionEnd"
                         type="date"
-                        value={subscriptionEnd}
-                        onChange={(e) => setSubscriptionEnd(e.target.value)}
-                        min={subscriptionStart || new Date().toISOString().split("T")[0]}
-                        className={formErrors.subscriptionEnd ? "border-red-500" : ""}
+                        value={formData.subscriptionEnd}
+                        onChange={(e) => handleInputChange("subscriptionEnd", e.target.value)}
+                        onBlur={() => handleBlur("subscriptionEnd")}
+                        min={formData.subscriptionStart || new Date().toISOString().split("T")[0]}
+                        className={getInputClassName("subscriptionEnd")}
                       />
-                      {formErrors.subscriptionEnd && (
+                      {touched.subscriptionEnd && formErrors.subscriptionEnd && (
                         <p className="text-xs text-red-500">{formErrors.subscriptionEnd}</p>
                       )}
                     </div>
@@ -533,7 +714,6 @@ export default function ApplyPropertyPage() {
                   {verifiedDocs}/{totalDocs} Verified
                 </Badge>
               </div>
-
               {userDocuments.length === 0 ? (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
@@ -582,17 +762,18 @@ export default function ApplyPropertyPage() {
                 <span className="text-muted-foreground">Price:</span>
                 <span className="font-medium">{formatCurrency(property.price)}</span>
               </div>
-              {bidAmount && (
+              {formData.bidAmount && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Your {isSale ? "Offer" : "Bid"}:</span>
-                  <span className="font-medium text-blue-600">{formatCurrency(Number(bidAmount))}</span>
+                  <span className="font-medium text-blue-600">{formatCurrency(Number(formData.bidAmount))}</span>
                 </div>
               )}
-              {(leaseStart || subscriptionStart) && (
+              {(formData.leaseStart || formData.subscriptionStart) && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Period:</span>
                   <span className="font-medium">
-                    {formatDate(leaseStart || subscriptionStart)} - {formatDate(leaseEnd || subscriptionEnd)}
+                    {formatDate(formData.leaseStart || formData.subscriptionStart)} -{" "}
+                    {formatDate(formData.leaseEnd || formData.subscriptionEnd)}
                   </span>
                 </div>
               )}

@@ -37,6 +37,10 @@ interface Profile {
   picture?: any
 }
 
+interface ValidationErrors {
+  phone_number?: string
+}
+
 export default function UserProfilePage() {
   useAuthRedirect()
   const [profile, setProfile] = useState<Profile>({
@@ -56,9 +60,55 @@ export default function UserProfilePage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle")
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({})
   const router = useRouter()
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
+  // Phone number validation function
+  const validatePhoneNumber = (phone: string): string | null => {
+    if (!phone.trim()) {
+      return "Phone number is required"
+    }
+
+    // Remove all non-digit characters for validation
+    const digitsOnly = phone.replace(/\D/g, '')
+    
+    // Check minimum length (at least 10 digits)
+    if (digitsOnly.length < 10) {
+      return "Phone number must be at least 10 digits"
+    }
+    
+    // Check maximum length (no more than 15 digits for international numbers)
+    if (digitsOnly.length > 15) {
+      return "Phone number cannot exceed 15 digits"
+    }
+
+    // Basic format validation - allow common formats
+    const phoneRegex = /^[\+]?[1-9][\d]{0,3}[-.\s]?[(]?[\d]{1,4}[)]?[-.\s]?[\d]{1,4}[-.\s]?[\d]{1,9}$/
+    if (!phoneRegex.test(phone.trim())) {
+      return "Please enter a valid phone number format"
+    }
+
+    return null
+  }
+
+  // Format phone number as user types (optional - for better UX)
+  const formatPhoneNumber = (value: string): string => {
+    const digitsOnly = value.replace(/\D/g, '')
+    
+    // Simple US format: (XXX) XXX-XXXX
+    if (digitsOnly.length <= 3) {
+      return digitsOnly
+    } else if (digitsOnly.length <= 6) {
+      return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(3)}`
+    } else if (digitsOnly.length <= 10) {
+      return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(3, 6)}-${digitsOnly.slice(6)}`
+    } else {
+      // For international numbers, keep it simple
+      return digitsOnly.slice(0, 15)
+    }
+  }
 
   useEffect(() => {
     const userId = sessionStorage.getItem("userId")
@@ -97,7 +147,23 @@ export default function UserProfilePage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setProfile((prev) => ({ ...prev, [name]: value }))
+    
+    if (name === "phone_number") {
+      // Clear previous validation error
+      setValidationErrors(prev => ({ ...prev, phone_number: undefined }))
+      
+      // Optional: Format phone number as user types (uncomment if desired)
+      // const formattedValue = formatPhoneNumber(value)
+      setProfile((prev) => ({ ...prev, [name]: value }))
+      
+      // Real-time validation (optional)
+      const error = validatePhoneNumber(value)
+      if (error) {
+        setValidationErrors(prev => ({ ...prev, phone_number: error }))
+      }
+    } else {
+      setProfile((prev) => ({ ...prev, [name]: value }))
+    }
   }
 
   const handleImageChange = async (file: File) => {
@@ -178,6 +244,17 @@ export default function UserProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate phone number before submitting
+    const phoneError = validatePhoneNumber(profile.phone_number)
+    if (phoneError) {
+      setValidationErrors({ phone_number: phoneError })
+      setUploadStatus("error")
+      return
+    }
+
+    // Clear validation errors
+    setValidationErrors({})
     setSaving(true)
     setUploadStatus("idle")
 
@@ -185,6 +262,21 @@ export default function UserProfilePage() {
     if (!userId) return
 
     try {
+      // Update profile
+      const profileRes = await fetch(`${API_BASE_URL}/api/user/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
+        },
+        body: JSON.stringify(profile),
+      })
+
+      if (!profileRes.ok) {
+        throw new Error("Failed to update profile")
+      }
+
+      // Upload document if selected
       if (document) {
         const formData = new FormData()
         formData.append("file", document)
@@ -199,7 +291,14 @@ export default function UserProfilePage() {
         if (!docUploadRes.ok) {
           throw new Error(`Failed to upload document: ${document.name}`)
         }
+        
+        // Reset document after successful upload
+        setDocument(null)
+        // Refresh documents list
+        await fetchDocuments(userId)
       }
+
+      setUploadStatus("success")
     } catch (err) {
       console.error("Update error:", err)
       setUploadStatus("error")
@@ -253,7 +352,9 @@ export default function UserProfilePage() {
       {uploadStatus === "error" && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Failed to update profile. Please try again.</AlertDescription>
+          <AlertDescription>
+            {validationErrors.phone_number || "Failed to update profile. Please try again."}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -357,9 +458,19 @@ export default function UserProfilePage() {
                   name="phone_number"
                   value={profile.phone_number}
                   onChange={handleChange}
-                  placeholder="Enter your phone number"
+                  placeholder="Enter your phone number (e.g., +1 (555) 123-4567)"
                   required
+                  className={validationErrors.phone_number ? "border-red-500 focus:border-red-500" : ""}
                 />
+                {validationErrors.phone_number && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {validationErrors.phone_number}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Enter phone number with country code (10-15 digits). Formats: +1234567890, (123) 456-7890, 123-456-7890
+                </p>
               </div>
             </div>
 
@@ -454,7 +565,11 @@ export default function UserProfilePage() {
 
         {/* Submit Button */}
         <div className="flex justify-end">
-          <Button type="submit" disabled={saving} className="min-w-32">
+          <Button 
+            type="submit" 
+            disabled={saving || !!validationErrors.phone_number} 
+            className="min-w-32"
+          >
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
